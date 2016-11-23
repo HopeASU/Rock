@@ -185,6 +185,15 @@ namespace Rock.Model
         public bool SendAttendanceReminder { get; set; }
 
         /// <summary>
+        /// Option to not include leaders in Group Attendance
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if [include leaders in attendance]
+        /// </value>
+        [DataMember]
+        public bool DoNotIncludeLeadersAttendance { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether to show the Person's connection status as a column in the Group Member Grid
         /// </summary>
         /// <value>

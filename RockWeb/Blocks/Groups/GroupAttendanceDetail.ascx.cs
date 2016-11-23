@@ -788,14 +788,31 @@ namespace RockWeb.Blocks.Groups
                 var groupMemberService = new GroupMemberService( _rockContext );
 
                 // Add any existing active members not on that list
-                var unattendedIds = groupMemberService
-                    .Queryable().AsNoTracking()
-                    .Where( m =>
-                        m.GroupId == _group.Id &&
-                        m.GroupMemberStatus == GroupMemberStatus.Active &&
-                        !attendedIds.Contains( m.PersonId ) )
-                    .Select( m => m.PersonId )
-                    .ToList();
+                var unattendedIds = new List<int>();
+
+                if (!_group.GroupType.DoNotIncludeLeadersAttendance)
+                {
+                    unattendedIds = groupMemberService
+                        .Queryable().AsNoTracking()
+                        .Where(m =>
+                           m.GroupId == _group.Id &&
+                           m.GroupMemberStatus == GroupMemberStatus.Active &&
+                           !attendedIds.Contains(m.PersonId))
+                        .Select(m => m.PersonId)
+                        .ToList();
+                }
+                else
+                {
+                    unattendedIds = groupMemberService
+                        .Queryable().AsNoTracking()
+                        .Where(m =>
+                           m.GroupId == _group.Id &&
+                           m.GroupMemberStatus == GroupMemberStatus.Active &&
+                           !attendedIds.Contains(m.PersonId) &&
+                           m.GroupRole.IsLeader == false)
+                        .Select(m => m.PersonId)
+                        .ToList();
+                }
 
                 string template = GetAttributeValue( "LavaTemplate" );
                 var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( null );

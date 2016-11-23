@@ -128,6 +128,8 @@
                                     <div class="col-xs-6">
                                         <Rock:RockCheckBox ID="cbTakesAttendance" runat="server" Label="Takes Attendance" Text="Yes" 
                                                     Help="Check this option if groups of this type should support taking and tracking attendance." />
+                                        <Rock:RockCheckBox ID="cbDoNotIncludeLeadersAttendance" runat="server" Label="Do Not Include Attendance Checkbox for Leaders" Text="Yes"
+                                                    Help="Check this option if you do not want a checkbox to show on a group for members set to a status of Leader" />
                                         <Rock:RockCheckBox ID="cbWeekendService" runat="server" Label="Weekend Service" Text="Yes" 
                                             Help="Check this option if attendance in groups of this type should be counted towards attending a weekend service." />
                                         <Rock:RockCheckBox ID="cbSendAttendanceReminder" runat="server" Label="Send Attendance Reminder" Text="Yes"

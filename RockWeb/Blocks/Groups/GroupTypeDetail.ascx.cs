@@ -427,6 +427,7 @@ namespace RockWeb.Blocks.Groups
             groupType.ShowInNavigation = cbShowInNavigation.Checked;
             groupType.ShowConnectionStatus = cbShowConnectionStatus.Checked;
             groupType.IconCssClass = tbIconCssClass.Text;
+            groupType.DoNotIncludeLeadersAttendance = cbDoNotIncludeLeadersAttendance.Checked;
             groupType.TakesAttendance = cbTakesAttendance.Checked;
             groupType.GroupsRequireCampus = cbGroupsRequireCampus.Checked;
             groupType.GroupAttendanceRequiresLocation = cbGroupAttendanceRequiresLocation.Checked;
@@ -738,6 +739,7 @@ namespace RockWeb.Blocks.Groups
             cbEnableLocationSchedules.Checked = groupType.EnableLocationSchedules ?? false;
 
             // Check In
+            cbDoNotIncludeLeadersAttendance.Checked = groupType.DoNotIncludeLeadersAttendance;
             cbTakesAttendance.Checked = groupType.TakesAttendance;
             cbWeekendService.Checked = groupType.AttendanceCountsAsWeekendService;
             cbSendAttendanceReminder.Checked = groupType.SendAttendanceReminder;
