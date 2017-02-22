@@ -1,4 +1,20 @@
-﻿using System;
+﻿// <copyright>
+// Copyright by the Spark Development Network
+//
+// Licensed under the Rock Community License (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.rockrms.com/license
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// </copyright>
+//
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -75,7 +91,7 @@ namespace Rock.UniversalSearch.IndexModels
         /// <value>
         /// The spouse.
         /// </value>
-        [RockIndexField]
+        [RockIndexField( Index = IndexType.NotIndexed )]
         public string Spouse { get; set; }
 
         /// <summary>
@@ -183,8 +199,17 @@ namespace Rock.UniversalSearch.IndexModels
         /// <value>
         /// The email.
         /// </value>
-        [RockIndexField]
+        [RockIndexField ( Index = IndexType.NotAnalyzed, Analyzer = "whitespace")]
         public string Email { get; set; }
+
+        /// <summary>
+        /// Gets or sets the phone numbers.
+        /// </summary>
+        /// <value>
+        /// The phone numbers.
+        /// </value>
+        [RockIndexField]
+        public string PhoneNumbers { get; set; }
 
         /// <summary>
         /// Gets the icon CSS class.
@@ -210,11 +235,14 @@ namespace Rock.UniversalSearch.IndexModels
         {
             var personIndex = new PersonIndex();
             personIndex.SourceIndexModel = "Rock.Model.Person";
+            personIndex.ModelConfiguration = "nofilters";
 
             personIndex.Id = person.Id;
             personIndex.FirstName = person.FirstName;
             personIndex.NickName = person.NickName;
             personIndex.LastName = person.LastName;
+
+            personIndex.ModelOrder = 10;
 
             if ( person.SuffixValue != null )
             {
@@ -229,6 +257,12 @@ namespace Rock.UniversalSearch.IndexModels
             personIndex.Gender = person.Gender.ToString();
             personIndex.PhotoUrl = person.PhotoUrl;
             personIndex.Email = person.Email;
+            personIndex.DocumentName = person.FullName;
+
+            if ( person.PhoneNumbers != null )
+            {
+                personIndex.PhoneNumbers = string.Join( "|", person.PhoneNumbers.Select( p => p.NumberTypeValue.Value + "^" + p.Number ) );
+            }
 
             // get family role
             var familyRole = person.GetFamilyRole();
@@ -261,58 +295,6 @@ namespace Rock.UniversalSearch.IndexModels
             AddIndexableAttributes( personIndex, person );
 
             return personIndex;
-        }
-
-        /// <summary>
-        /// Formats the search result.
-        /// </summary>
-        /// <param name="currentPerson"></param>
-        /// <param name="displayOptions"></param>
-        /// <returns></returns>
-        public override FormattedSearchResult FormatSearchResult( Person currentPerson, Dictionary<string, object> displayOptions = null )
-        {
-            string url = "/Person/";
-
-            if (displayOptions != null )
-            {
-                if ( displayOptions.ContainsKey( "Person.Url" ) )
-                {
-                    url = displayOptions["Person.Url"].ToString();
-                }
-            }
-
-            var recordStatus = DefinedValueCache.Read( this.RecordStatusValueId.HasValue ? this.RecordStatusValueId.Value : 0 );
-            var connectionStatus = DefinedValueCache.Read( this.ConnectionStatusValueId.HasValue ? this.ConnectionStatusValueId.Value : 0 );
-            var campus = CampusCache.Read( this.CampusId.HasValue ? this.CampusId.Value : 0 );
-
-            return new FormattedSearchResult() { IsViewAllowed = true, FormattedResult = $@"
-                    <div class='row model-cannavigate' data-href='{url}{this.Id}'>
-                        <div class='col-sm-1 text-center'>
-                            <i class='{this.IconCssClass} fa-2x'></i>
-                        </div>
-                        <div class='col-md-3 col-sm-10'>
-                            {this.NickName} {this.LastName} {this.Suffix} <br />
-                            {(this.Email != "" ? this.Email + "<br />" : "")}
-                            {(this.StreetAddress != "" ? this.StreetAddress + "<br />" : "")}
-                            {(this.City != "" ? this.City + ", " + this.State + " " + this.PostalCode : "")}
-                        </div>
-                        <div class='col-md-2'>
-                            Connection Status: <br /> 
-                            {(connectionStatus != null ? connectionStatus.Value : "")}
-                        </div>
-                        <div class='col-md-2'>
-                            Age: <br /> 
-                            {this.Age}
-                        </div>
-                        <div class='col-md-2'>
-                            Record Status: <br /> 
-                            {(recordStatus != null ? recordStatus.Value : "")}
-                        </div>
-                        <div class='col-md-2'>
-                            Campus: <br /> 
-                            {(campus != null ? campus.Name : "")}
-                        </div>
-                    </div>" };
         }
     }
 }
