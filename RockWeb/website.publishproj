@@ -84,6 +84,10 @@ Copyright (C) Microsoft Corporation. All rights reserved.
       <Project>{185A31D7-3037-4DAE-8797-0459849A84BD}</Project>
       <Name>Rock</Name>
     </ProjectReference>
+    <ProjectReference Include="..\SignNowSDK\SignNowSDK.csproj">
+      <Project>{69AC175C-3997-4514-8C9E-5D24811928C2}</Project>
+      <Name>SignNowSDK</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(_WebPublishTargetsPath)\Web\Microsoft.WebSite.Publishing.targets" />
 </Project>
