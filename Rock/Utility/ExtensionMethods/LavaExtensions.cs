@@ -21,6 +21,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using DotLiquid;
 using Rock.Data;
@@ -54,7 +55,21 @@ namespace Rock
 
             lavaDebugPanel.Append( "<p>Below is a listing of available merge fields for this block. Find out more on Lava at <a href='http://www.rockrms.com/lava' target='_blank'>rockrms.com/lava</a>." );
 
-            lavaDebugPanel.Append( formatLavaDebugInfo( lavaObject.LiquidizeChildren( 0, rockContext ) ) );
+
+            int maxWaitMS = 10000;
+            System.Web.HttpContext taskContext = System.Web.HttpContext.Current; 
+            var formatLavaTask = new Task( () =>
+            {
+                System.Web.HttpContext.Current = taskContext;
+                lavaDebugPanel.Append( formatLavaDebugInfo( lavaObject.LiquidizeChildren( 0, rockContext ) ) );
+            } );
+
+            formatLavaTask.Start();
+
+            if ( !formatLavaTask.Wait( maxWaitMS ) )
+            {
+                return "<div class='alert alert-warning lava-debug'>Warning: Timeout generating Lava Help</div>";
+            }
 
             // Add a 'GlobalAttribute' entry if it wasn't part of the LavaObject
             if ( !( lavaObject is IDictionary<string, object> ) || !( (IDictionary<string, object>)lavaObject ).Keys.Contains( "GlobalAttribute" ) )
@@ -216,7 +231,46 @@ namespace Rock
                     {
                         try
                         {
-                            object propValue = liquidObject[key];
+                            object propValue = null;
+                            var propType = entityType.GetPropertyType( key );
+                            if ( propType?.Name == "ICollection`1" )
+                            {
+                                // if the property type is an ICollection, get the underlying query and just fetch one for an example (just in case there are 1000s of records)
+                                var entityDbContext = GetDbContextFromEntity( myObject );
+                                if ( entityDbContext != null )
+                                {
+                                    var entryCollection = entityDbContext.Entry( myObject )?.Collection( key );
+                                    if ( entryCollection.IsLoaded )
+                                    {
+                                        propValue = liquidObject[key];
+                                    }
+                                    else
+                                    {
+                                        try
+                                        {
+                                            var propQry = entryCollection.Query().Provider.CreateQuery<Rock.Data.IEntity>( entryCollection.Query().Expression );
+                                            int propCollectionCount = propQry.Count();
+                                            List<object> listSample = propQry.Take( 1 ).ToList().Cast<object>().ToList();
+                                            if ( propCollectionCount > 1 )
+                                            {
+                                                listSample.Add( $"({propCollectionCount - 1} more...)" );
+                                            }
+
+                                            propValue = listSample;
+                                        }
+                                        catch
+                                        {
+                                            // The Collection might be a database model that isn't an IEntity, so just do it the regular way
+                                            propValue = liquidObject[key];
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                propValue = liquidObject[key];
+                            }
+
                             if ( propValue != null )
                             {
                                 result.Add( key, propValue.LiquidizeChildren( levelsDeep, rockContext, entityHistory, parentElement + "." + key ) );
@@ -247,7 +301,7 @@ namespace Rock
                     foreach ( var objAttr in objWithAttrs.Attributes )
                     {
                         var attributeCache = objAttr.Value;
-                        string value = attributeCache.FieldType.Field.FormatValue( null, objWithAttrs.GetAttributeValue( attributeCache.Key ), attributeCache.QualifierValues, false );
+                        string value = attributeCache.FieldType.Field.FormatValue( null, attributeCache.EntityTypeId, objWithAttrs.Id, objWithAttrs.GetAttributeValue( attributeCache.Key ), attributeCache.QualifierValues, false );
                         objAttrs.Add( attributeCache.Key, value.Truncate( 50 ).EncodeHtml() );
                     }
 
@@ -268,7 +322,8 @@ namespace Rock
                 {
                     try
                     {
-                        result.Add( keyValue.Key, keyValue.Value.LiquidizeChildren( levelsDeep, rockContext, entityHistory, keyValue.Key ) );
+                        var parentVariable = ( keyValue.Value.GetType().GetInterface( "IList" ) != null ) ? keyValue.Key.ToLower().Singularize() : keyValue.Key;
+                        result.Add( keyValue.Key, keyValue.Value.LiquidizeChildren( levelsDeep, rockContext, entityHistory, parentVariable ) );
                     }
                     catch ( Exception ex )
                     {
@@ -370,7 +425,6 @@ namespace Rock
                         else
                         {
                             // item is a root level object
-
                             string panelId = Guid.NewGuid().ToString();
 
                             sb.Append( "<div class='panel panel-default panel-lavadebug'>" );
@@ -441,6 +495,27 @@ namespace Rock
             }
 
             return string.Empty;
+        }
+
+        /// <summary>
+        /// Uses reflection to figure out the DbContext associated with the entity
+        /// NOTE: the entity needs to be a DynamicProxy
+        /// from https://stackoverflow.com/a/43667414/1755417
+        /// </summary>
+        /// <param name="entity">The entity.</param>
+        /// <returns></returns>
+        private static DbContext GetDbContextFromEntity( object entity )
+        {
+            FieldInfo entityWrapperField = entity.GetType().GetField( "_entityWrapper" );
+
+            if ( entityWrapperField == null )
+                return null;
+
+            var entityWrapper = entityWrapperField.GetValue( entity );
+            PropertyInfo entityWrapperContextProperty = entityWrapper.GetType().GetProperty( "Context" );
+            var context = ( System.Data.Entity.Core.Objects.ObjectContext ) entityWrapperContextProperty.GetValue( entityWrapper, null );
+
+            return context?.TransactionHandler?.DbContext as DbContext;
         }
 
         /// <summary>
@@ -548,6 +623,8 @@ namespace Rock
                 Template template = Template.Parse( content );
                 template.Registers.Add( "EnabledCommands", enabledLavaCommands );
 
+                string result;
+
                 if ( encodeStrings )
                 {
                     // if encodeStrings = true, we want any string values to be XML Encoded ( 
@@ -555,13 +632,26 @@ namespace Rock
                     renderParameters.LocalVariables = Hash.FromDictionary( mergeObjects );
                     renderParameters.ValueTypeTransformers = new Dictionary<Type, Func<object, object>>();
                     renderParameters.ValueTypeTransformers[typeof( string )] = EncodeStringTransformer;
-                    return template.Render( renderParameters );
+                    result = template.Render( renderParameters );
                 }
                 else
                 {
-                    return template.Render( Hash.FromDictionary( mergeObjects ) );
+                    result = template.Render( Hash.FromDictionary( mergeObjects ) );
                 }
 
+                if ( throwExceptionOnErrors && template.Errors.Any() )
+                {
+                    if ( template.Errors.Count == 1 )
+                    {
+                        throw template.Errors[0];
+                    }
+                    else
+                    {
+                        throw new AggregateException( template.Errors );
+                    }
+                }
+
+                return result;
             }
             catch ( Exception ex )
             {

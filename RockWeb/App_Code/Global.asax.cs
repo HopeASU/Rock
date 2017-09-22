@@ -39,6 +39,7 @@ using Quartz.Impl.Matchers;
 
 using Rock;
 using Rock.Communication;
+using Rock.Configuration;
 using Rock.Data;
 using Rock.Jobs;
 using Rock.Model;
@@ -149,12 +150,10 @@ namespace RockWeb
                 // Get a db context
                 using ( var rockContext = new RockContext() )
                 {
-                    if ( System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment )
+                    if ( System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment && !fileInfo.Exists )
                     {
                         try
                         {
-                            // default Initializer is CreateDatabaseIfNotExists, so set it to NULL so that nothing happens if there isn't a database yet
-                            Database.SetInitializer<Rock.Data.RockContext>( null );
                             new AttributeService( rockContext ).Get( 0 );
                             System.Diagnostics.Debug.WriteLine( string.Format( "ConnectToDatabase {2}/{1} - {0} ms", stopwatch.Elapsed.TotalMilliseconds, rockContext.Database.Connection.Database, rockContext.Database.Connection.DataSource ) );
                         }
@@ -178,6 +177,7 @@ namespace RockWeb
 
                     // Preload the commonly used objects
                     stopwatch.Restart();
+                    LoadComponenetData( rockContext );
                     LoadCacheObjects( rockContext );
                     if ( System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment )
                     {
@@ -299,8 +299,15 @@ namespace RockWeb
             }
             catch (Exception ex)
             {
+                if ( System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment )
+                {
+                    System.Diagnostics.Debug.WriteLine( string.Format( "##Startup Exception##: {0}\n{1}", ex.Message, ex.StackTrace ) );
+                }
+
                 SetError66();
-                throw ( new Exception( "Error occurred during application startup", ex ) );
+                var startupException = new Exception( "Error occurred during application startup", ex );
+                LogError( startupException, null );
+                throw startupException;
             }
 
             // Update attributes for new workflow actions
@@ -523,9 +530,6 @@ namespace RockWeb
         {
             bool result = false;
 
-            // default Initializer is CreateDatabaseIfNotExists, so set it to NULL so it doesn't try to do anything special
-            Database.SetInitializer<Rock.Data.RockContext>( null );
-
             var fileInfo = new FileInfo( Server.MapPath( "~/App_Data/Run.Migration" ) );
             if ( fileInfo.Exists )
             {
@@ -717,6 +721,54 @@ namespace RockWeb
         }
 
         /// <summary>
+        /// Loads the Component Data from Web.config.
+        /// </summary>
+        private void LoadComponenetData( RockContext rockContext )
+        {
+            var rockConfig = RockConfig.Config;
+            if ( rockConfig.AttributeValues.Count > 0 )
+            {
+                foreach ( AttributeValueConfig attributeValueConfig in rockConfig.AttributeValues )
+                {
+                    AttributeService attributeService = new AttributeService( rockContext );
+                    AttributeValueService attributeValueService = new AttributeValueService( rockContext );
+                    var attribute = attributeService.Get( attributeValueConfig.EntityTypeId.AsInteger(),
+                                           attributeValueConfig.EntityTypeQualifierColumm,
+                                           attributeValueConfig.EntityTypeQualifierValue,
+                                           attributeValueConfig.AttributeKey );
+                    if ( attribute == null )
+                    {
+                        attribute = new Rock.Model.Attribute();
+                        attribute.FieldTypeId = FieldTypeCache.Read( new Guid( Rock.SystemGuid.FieldType.TEXT ) ).Id;
+                        attribute.EntityTypeQualifierColumn = attributeValueConfig.EntityTypeQualifierColumm;
+                        attribute.EntityTypeQualifierValue = attributeValueConfig.EntityTypeQualifierValue;
+                        attribute.Key = attributeValueConfig.AttributeKey;
+                        attribute.Name = attributeValueConfig.AttributeKey.SplitCase();
+                        attributeService.Add( attribute );
+                        rockContext.SaveChanges();
+                    }
+
+
+                    var attributeValue = attributeValueService.GetByAttributeIdAndEntityId( attribute.Id, attributeValueConfig.EntityId.AsInteger() );
+                    if ( attributeValue == null && !string.IsNullOrWhiteSpace( attributeValueConfig.Value ) )
+                    {
+
+                        attributeValue = new Rock.Model.AttributeValue();
+                        attributeValue.AttributeId = attribute.Id;
+                        attributeValue.EntityId = attributeValueConfig.EntityId.AsInteger();
+                        attributeValueService.Add( attributeValue );
+                    }
+                    if ( attributeValue.Value != attributeValueConfig.Value )
+                    {
+                        attributeValue.Value = attributeValueConfig.Value;
+                        rockContext.SaveChanges();
+                    }
+
+                }
+            }
+        }
+
+        /// <summary>
         /// Adds the call back.
         /// </summary>
         private void MarkOnlineUsersOffline()
@@ -765,6 +817,9 @@ namespace RockWeb
 
             // Add a default route for when no parameters are passed
             routes.Add( new Route( "", new Rock.Web.RockRouteHandler() ) );
+
+            // Add a default route for shortlinks
+            routes.Add( new Route( "{shortlink}", new Rock.Web.RockRouteHandler() ) );
         }
 
         /// <summary>
@@ -993,7 +1048,9 @@ namespace RockWeb
 
                             if ( recipients.Any() )
                             {
-                                Email.Send( Rock.SystemGuid.SystemEmail.CONFIG_EXCEPTION_NOTIFICATION.AsGuid(), recipients, string.Empty, string.Empty, false );
+                                var message = new RockEmailMessage( Rock.SystemGuid.SystemEmail.CONFIG_EXCEPTION_NOTIFICATION.AsGuid() );
+                                message.SetRecipients( recipients );
+                                message.Send();
                             }
                         }
                     }

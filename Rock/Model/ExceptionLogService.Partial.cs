@@ -154,7 +154,9 @@ namespace Rock.Model
                 var rockContext = new Rock.Data.RockContext();
                 var exceptionLogService = new ExceptionLogService( rockContext );
                 exceptionLogService.Add( exceptionLog );
-                rockContext.SaveChanges();
+
+                // call SaveChanges with 'disablePrePostProcessing=true' just in case the pre/post processing would also cause exceptions
+                rockContext.SaveChanges( true );
 
                 // Recurse if inner exception is found
                 if ( exceptionLog.HasInnerException.GetValueOrDefault( false ) )
@@ -189,7 +191,7 @@ namespace Rock.Model
                     string when = RockDateTime.Now.ToString();
                     while ( ex != null )
                     {
-                        File.AppendAllText( filePath, string.Format( "{0},{1},\"{2}\"\r\n", when, ex.GetType(), ex.Message ) );
+                        File.AppendAllText( filePath, string.Format( "{0},{1},\"{2}\",\"{3}\"\r\n", when, ex.GetType(), ex.Message, ex.StackTrace ) );
                         ex = ex.InnerException;
                     }
                 }
@@ -304,12 +306,25 @@ namespace Rock.Model
                 if ( formList.Count > 0 )
                 {
                     formItems.Append( "<table class=\"form-items exception-table\">" );
-
                     foreach ( string formItem in formList )
                     {
-                        formItems.Append( "<tr><td><b>" + formItem + "</b></td><td>" + formList[formItem].EncodeHtml() + "</td></tr>" );
+                        if ( formItem.IsNotNullOrWhitespace() )
+                        {
+                            string formValue = formList[formItem].EncodeHtml();
+                            string lc = formItem.ToLower();
+                            if ( lc.Contains( "nolog" ) ||
+                                lc.Contains( "creditcard" ) ||
+                                lc.Contains( "cc-number" ) ||
+                                lc.Contains( "cvv" ) ||
+                                lc.Contains( "ssn" ) ||
+                                lc.Contains( "accountnumber" ) ||
+                                lc.Contains( "account-number" ) )
+                            {
+                                formValue = "***obfuscated***";
+                            }
+                            formItems.Append( "<tr><td><b>" + formItem + "</b></td><td>" + formValue + "</td></tr>" );
+                        }
                     }
-
                     formItems.Append( "</table>" );
                 }
 

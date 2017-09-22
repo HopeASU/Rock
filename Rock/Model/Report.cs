@@ -36,6 +36,7 @@ namespace Rock.Model
     /// <summary>
     /// Represents a Report (based off of a <see cref="Rock.Model.DataView"/> in Rock.
     /// </summary>
+    [RockDomain( "Reporting" )]
     [Table( "Report" )]
     [DataContract]
     public partial class Report : Model<Report>, ICategorized
@@ -108,6 +109,15 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         public int? FetchTop { get; set; }
+
+        /// <summary>
+        /// Gets or sets the query hint that is included in the SQL that is executed on the database server
+        /// </summary>
+        /// <value>
+        /// The query hint.
+        /// </value>
+        [DataMember]
+        public string QueryHint { get; set; }
 
         #endregion
 
@@ -223,11 +233,31 @@ namespace Rock.Model
         /// <returns></returns>
         public IQueryable GetQueryable( Type entityType, Dictionary<int, EntityField> entityFields, Dictionary<int, AttributeCache> attributes, Dictionary<int, ReportField> selectComponents, Rock.Web.UI.Controls.SortProperty sortProperty, int? databaseTimeoutSeconds, out List<string> errorMessages )
         {
+            System.Data.Entity.DbContext reportDbContext;
+            return GetQueryable( entityType, entityFields, attributes, selectComponents, sortProperty, databaseTimeoutSeconds, out errorMessages, out reportDbContext );
+        }
+
+        /// <summary>
+        /// Returns a IQueryable of the report
+        /// </summary>
+        /// <param name="entityType">Type of the entity.</param>
+        /// <param name="entityFields">The entity fields.</param>
+        /// <param name="attributes">The attributes.</param>
+        /// <param name="selectComponents">The select components.</param>
+        /// <param name="sortProperty">The sort property.</param>
+        /// <param name="databaseTimeoutSeconds">The database timeout seconds.</param>
+        /// <param name="errorMessages">The error messages.</param>
+        /// <param name="reportDbContext">The report database context that was used.</param>
+        /// <returns></returns>
+        /// <exception cref="System.Exception"></exception>
+        public IQueryable GetQueryable( Type entityType, Dictionary<int, EntityField> entityFields, Dictionary<int, AttributeCache> attributes, Dictionary<int, ReportField> selectComponents, Rock.Web.UI.Controls.SortProperty sortProperty, int? databaseTimeoutSeconds, out List<string> errorMessages, out System.Data.Entity.DbContext reportDbContext )
+        {
             errorMessages = new List<string>();
+            reportDbContext = null;
 
             if ( entityType != null )
             {
-                System.Data.Entity.DbContext reportDbContext = Reflection.GetDbContextForEntityType( entityType );
+                reportDbContext = Reflection.GetDbContextForEntityType( entityType );
                 IService serviceInstance = Reflection.GetServiceForEntityType( entityType, reportDbContext );
 
                 if ( databaseTimeoutSeconds.HasValue )
@@ -309,7 +339,7 @@ namespace Rock.Model
                             try
                             {
                                 var componentExpression = selectComponent.GetExpression( reportDbContext, idExpression, reportField.Value.Selection ?? string.Empty );
-                                if (componentExpression == null)
+                                if ( componentExpression == null )
                                 {
                                     componentExpression = Expression.Constant( null, typeof( string ) );
                                 }
@@ -328,7 +358,7 @@ namespace Rock.Model
                                         {
                                             memberExpression = Expression.Property( memberExpression ?? paramExpression, customSortPropertyPart );
                                         }
-                                        
+
                                         bindings.Add( Expression.Bind( memberInfo, memberExpression ) );
                                     }
                                 }

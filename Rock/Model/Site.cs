@@ -34,6 +34,7 @@ namespace Rock.Model
     /// Site Model Entity. A Site in Rock is a collection of <see cref="Page">pages</see> and usually 
     /// associated with one or more <see cref="SiteDomain">SiteDomains </see>.
     /// </summary>
+    [RockDomain( "CMS" )]
     [Table( "Site" )]
     [DataContract]
     public partial class Site : Model<Site>, IRockIndexable
@@ -308,7 +309,8 @@ namespace Rock.Model
         ///   <c>true</c> if [allow indexing]; otherwise, <c>false</c>.
         /// </value>
         [DataMember]
-        public bool AllowIndexing {
+        public bool AllowIndexing
+        {
             get { return _allowIndexing; }
             set { _allowIndexing = value; }
         }
@@ -342,6 +344,25 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         public bool RequiresEncryption { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this site should be available to be used for shortlinks (the shortlink can still reference url of other sites).
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [enabled for shortening]; otherwise, <c>false</c>.
+        /// </value>
+        [DataMember]
+        public bool EnabledForShortening { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets the favicon binary file identifier.
+        /// </summary>
+        /// <value>
+        /// The favicon binary file identifier.
+        /// </value>
+        [DataMember]
+        public int? FavIconBinaryFileId { get; set; }
+
         #endregion
 
         #region Virtual Properties
@@ -354,6 +375,15 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         public virtual ICollection<Layout> Layouts { get; set; }
+
+        /// <summary>
+        /// Gets or sets the collection of <see cref="Rock.Model.Block">Blocks</see> that are used on the site.
+        /// </summary>
+        /// <value>
+        /// Collection of <see cref="Rock.Model.Block"/> entities that are used on the site.
+        /// </value>
+        [DataMember]
+        public virtual ICollection<Block> Blocks { get; set; }
 
         /// <summary>
         /// Gets or sets the collection of <see cref="Rock.Model.SiteDomain"/> entities that reference the Site.
@@ -406,6 +436,7 @@ namespace Rock.Model
         /// <value>
         /// The change password page.
         /// </value>
+        [LavaInclude]
         public virtual Page ChangePasswordPage { get; set; }
 
         /// <summary>
@@ -480,6 +511,44 @@ namespace Rock.Model
         [DataMember]
         public virtual Page MobilePage { get; set; }
 
+        /// <summary>
+        /// Gets or sets the favicon binary file.
+        /// </summary>
+        /// <value>
+        /// The fav icon binary file.
+        /// </value>
+        [LavaInclude]
+        public virtual BinaryFile FavIconBinaryFile { get; set; }
+
+        /// <summary>
+        /// Gets the default domain URI.
+        /// </summary>
+        /// <value>
+        /// The default domain URI.
+        /// </value>
+        [LavaInclude]
+        public virtual Uri DefaultDomainUri 
+        {
+            get 
+            {
+                try
+                {
+                    string protocol = this.RequiresEncryption ? "https://" : "http://";
+                    string host = this.SiteDomains.OrderBy( d => d.Order ).Select( d => d.Domain ).FirstOrDefault();
+                    if ( host != null )
+                    {
+                        host = host.ToLower().StartsWith( "http://" ) ? host.Substring( 7 ) : host;
+                        host = host.ToLower().StartsWith( "https://" ) ? host.Substring( 8 ) : host;
+
+                        return new Uri( protocol + host );
+                    }
+                }
+                catch { }
+
+                return new Uri( Rock.Web.Cache.GlobalAttributesCache.Read().GetValue( "PublicApplicationRoot" ) );
+            }
+        }
+
         #endregion
 
         #region Methods
@@ -499,14 +568,14 @@ namespace Rock.Model
         /// Bulks the index documents.
         /// </summary>
         public void BulkIndexDocuments()
-        {            
+        {
             // get list of sites that with indexing enabled
             var sites = new SiteService( new RockContext() ).Queryable().Where( s => s.IsIndexEnabled );
-            
-            foreach(var site in sites )
+
+            foreach ( var site in sites )
             {
                 // delete current items index
-                IndexContainer.DeleteDocumentByProperty(typeof(SitePageIndex), "SiteId", site.Id );
+                IndexContainer.DeleteDocumentByProperty( typeof( SitePageIndex ), "SiteId", site.Id );
 
                 // clear current documents out
                 var pageCount = new Crawler().CrawlSite( site );
@@ -630,6 +699,7 @@ namespace Rock.Model
             this.HasOptional( p => p.CommunicationPage ).WithMany().HasForeignKey( p => p.CommunicationPageId ).WillCascadeOnDelete( false );
             this.HasOptional( p => p.CommunicationPageRoute ).WithMany().HasForeignKey( p => p.CommunicationPageRouteId ).WillCascadeOnDelete( false );
             this.HasOptional( p => p.MobilePage ).WithMany().HasForeignKey( p => p.MobilePageId ).WillCascadeOnDelete( false );
+            this.HasOptional( p => p.FavIconBinaryFile ).WithMany().HasForeignKey( p => p.FavIconBinaryFileId ).WillCascadeOnDelete( false );
         }
     }
 

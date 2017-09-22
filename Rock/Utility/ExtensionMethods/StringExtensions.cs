@@ -63,7 +63,7 @@ namespace Rock
         /// </summary>
         /// <param name="str">The string.</param>
         /// <returns></returns>
-        public static bool IsNullOrWhiteSpace(this string str )
+        public static bool IsNullOrWhiteSpace( this string str )
         {
             return string.IsNullOrWhiteSpace( str );
         }
@@ -106,7 +106,7 @@ namespace Rock
                 Int64 hashCodeEnd = BitConverter.ToInt64( hashText, 24 );
                 hashCode = hashCodeStart ^ hashCodeMedium ^ hashCodeEnd;
             }
-            return (hashCode);
+            return ( hashCode );
         }
 
         /// <summary>
@@ -352,13 +352,13 @@ namespace Rock
         /// Attempts to convert string to an dictionary using the |/comma and ^ delimiter Key/Value syntax.  Returns an empty dictionary if unsuccessful.
         /// </summary>
         /// <param name="str">The string.</param>
-        /// <returns></returns>                     
+        /// <returns></returns>
         public static System.Collections.Generic.Dictionary<string, string> AsDictionary( this string str )
         {
             var dictionary = new System.Collections.Generic.Dictionary<string, string>();
             string[] nameValues = str.Split( new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries );
             // If we haven't found any pipes, check for commas
-            if ( nameValues.Count() == 1 && nameValues[0] == str)
+            if ( nameValues.Count() == 1 && nameValues[0] == str )
             {
                 nameValues = str.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries );
             }
@@ -388,7 +388,6 @@ namespace Rock
             }
             return null;
         }
-
 
         /// <summary>
         /// Attempts to convert string to integer.  Returns 0 if unsuccessful.
@@ -513,8 +512,8 @@ namespace Rock
         {
             if ( !string.IsNullOrWhiteSpace( str ) )
             {
-                // strip off non numeric and characters (for example, currency symbols)
-                str = Regex.Replace( str, @"[^0-9\.-]", "" );
+                // strip off non numeric and characters at the beginning of the line (currency symbols)
+                str = Regex.Replace( str, @"^[^0-9\.-]", "" );
             }
 
             double value;
@@ -580,16 +579,29 @@ namespace Rock
         }
 
         /// <summary>
-        /// Masks the specified value if greater than 4 characters (such as a credit card number).
+        /// Masks the specified value if greater than 4 characters (such as a credit card number) showing only the last 4 chars prefixed with 12*s
         /// For example, the return string becomes "************6789".
         /// </summary>
         /// <param name="value">The value.</param>
         /// <returns></returns>
         public static string Masked( this string value )
         {
-            if ( value.Length > 4 )
+            return value.Masked( false );
+        }
+
+        /// <summary>
+        /// Masks the specified value if greater than 4 characters (such as a credit card number) showing only the last 4 chars and replacing the preceeding chars with *
+        /// For example, the return string becomes "************6789".
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="preserveLength">if set to <c>true</c> [preserve length]. If false, always put 12 *'s as the prefix</param>
+        /// <returns></returns>
+        public static string Masked( this string value, bool preserveLength )
+        {
+            if ( value != null && value.Length > 4 )
             {
-                return string.Concat( new string( '*', 12 ), value.Substring( value.Length - 4 ) );
+                int maskedLength = preserveLength ? value.Length - 4 : 12;
+                return string.Concat( new string( '*', maskedLength ), value.Substring( value.Length - 4 ) );
             }
             else
             {

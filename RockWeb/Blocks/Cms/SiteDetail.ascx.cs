@@ -44,6 +44,8 @@ namespace RockWeb.Blocks.Cms
     [DisplayName( "Site Detail" )]
     [Category( "CMS" )]
     [Description( "Displays the details of a specific site." )]
+    [BinaryFileTypeField( "Default File Type", "The default file type to use while uploading Favicon", true,
+        Rock.SystemGuid.BinaryFiletype.DEFAULT, "", 0 )]
     public partial class SiteDetail : RockBlock, IDetailBlock
     {
         #region Properties
@@ -317,7 +319,7 @@ namespace RockWeb.Blocks.Cms
             }
             else
             {
-                mdThemeCompile.Show( string.Format("An error occurred compiling the theme {0}. Message: {1}.", site.Theme, messages), ModalAlertType.Warning );
+                mdThemeCompile.Show( string.Format( "An error occurred compiling the theme {0}. Message: {1}.", site.Theme, messages ), ModalAlertType.Warning );
             }
         }
 
@@ -341,7 +343,7 @@ namespace RockWeb.Blocks.Cms
                 var sitePages = new List<int> {
                     site.DefaultPageId ?? -1,
                     site.LoginPageId ?? -1,
-                    site.RegistrationPageId ?? -1, 
+                    site.RegistrationPageId ?? -1,
                     site.PageNotFoundPageId ?? -1
                 };
 
@@ -400,6 +402,7 @@ namespace RockWeb.Blocks.Cms
             if ( Page.IsValid )
             {
                 var rockContext = new RockContext();
+                PageService pageService = new PageService( rockContext );
                 SiteService siteService = new SiteService( rockContext );
                 SiteDomainService siteDomainService = new SiteDomainService( rockContext );
                 bool newSite = false;
@@ -435,6 +438,7 @@ namespace RockWeb.Blocks.Cms
                 site.ErrorPage = tbErrorPage.Text;
                 site.GoogleAnalyticsCode = tbGoogleAnalytics.Text;
                 site.RequiresEncryption = cbRequireEncryption.Checked;
+                site.EnabledForShortening = cbEnableForShortening.Checked;
                 site.EnableMobileRedirect = cbEnableMobileRedirect.Checked;
                 site.MobilePageId = ppMobilePage.PageId;
                 site.ExternalUrl = tbExternalURL.Text;
@@ -448,6 +452,13 @@ namespace RockWeb.Blocks.Cms
 
                 site.PageHeaderContent = cePageHeaderContent.Text;
 
+                int? existingIconId = null;
+                if ( site.FavIconBinaryFileId != imgSiteIcon.BinaryFileId )
+                {
+                    existingIconId = site.FavIconBinaryFileId;
+                    site.FavIconBinaryFileId = imgSiteIcon.BinaryFileId;
+                }
+
                 var currentDomains = tbSiteDomains.Text.SplitDelimitedValues().ToList<string>();
                 site.SiteDomains = site.SiteDomains ?? new List<SiteDomain>();
 
@@ -458,6 +469,7 @@ namespace RockWeb.Blocks.Cms
                     siteDomainService.Delete( domain );
                 }
 
+                int order = 0;
                 foreach ( string domain in currentDomains )
                 {
                     SiteDomain sd = site.SiteDomains.Where( d => d.Domain == domain ).FirstOrDefault();
@@ -468,6 +480,7 @@ namespace RockWeb.Blocks.Cms
                         sd.Guid = Guid.NewGuid();
                         site.SiteDomains.Add( sd );
                     }
+                    sd.Order = order++;
                 }
 
                 if ( !site.DefaultPageId.HasValue && !newSite )
@@ -487,6 +500,18 @@ namespace RockWeb.Blocks.Cms
                     rockContext.SaveChanges();
 
                     SaveAttributes( new Page().TypeId, "SiteId", site.Id.ToString(), PageAttributesState, rockContext );
+
+                    if ( existingIconId.HasValue )
+                    {
+                        BinaryFileService binaryFileService = new BinaryFileService( rockContext );
+                        var binaryFile = binaryFileService.Get( existingIconId.Value );
+                        if ( binaryFile != null )
+                        {
+                            // marked the old images as IsTemporary so they will get cleaned up later
+                            binaryFile.IsTemporary = true;
+                            rockContext.SaveChanges();
+                        }
+                    }
 
                     if ( newSite )
                     {
@@ -516,6 +541,12 @@ namespace RockWeb.Blocks.Cms
 
                 rockContext.SaveChanges();
 
+                foreach ( int pageId in pageService.GetBySiteId( site.Id )
+                    .Select( p => p.Id )
+                    .ToList() )
+                {
+                    PageCache.Flush( pageId );
+                }
                 SiteCache.Flush( site.Id );
                 AttributeCache.FlushEntityAttributes();
 
@@ -537,7 +568,6 @@ namespace RockWeb.Blocks.Cms
 
                     if ( layout != null )
                     {
-                        var pageService = new PageService( rockContext );
                         var page = new Page();
                         page.LayoutId = layout.Id;
                         page.PageTitle = siteCache.Name + " Home Page";
@@ -699,8 +729,11 @@ namespace RockWeb.Blocks.Cms
                 }
             }
 
+            Guid fileTypeGuid = GetAttributeValue( "DefaultFileType" ).AsGuid();
+            imgSiteIcon.BinaryFileTypeGuid = fileTypeGuid;
+
             // set theme compile button
-            if ( ! new RockTheme(site.Theme ).AllowsCompile) 
+            if ( !new RockTheme( site.Theme ).AllowsCompile )
             {
                 btnCompileTheme.Enabled = false;
                 btnCompileTheme.Text = "Theme Doesn't Support Compiling";
@@ -777,6 +810,8 @@ namespace RockWeb.Blocks.Cms
             ddlTheme.Enabled = !site.IsSystem;
             ddlTheme.SetValue( site.Theme );
 
+            imgSiteIcon.BinaryFileId = site.FavIconBinaryFileId;
+
             if ( site.DefaultPageRoute != null )
             {
                 ppDefaultPage.SetValue( site.DefaultPageRoute );
@@ -833,9 +868,10 @@ namespace RockWeb.Blocks.Cms
 
             tbErrorPage.Text = site.ErrorPage;
 
-            tbSiteDomains.Text = string.Join( "\n", site.SiteDomains.Select( dom => dom.Domain ).ToArray() );
+            tbSiteDomains.Text = string.Join( "\n", site.SiteDomains.OrderBy( d => d.Order ).Select( d => d.Domain ).ToArray() );
             tbGoogleAnalytics.Text = site.GoogleAnalyticsCode;
             cbRequireEncryption.Checked = site.RequiresEncryption;
+            cbEnableForShortening.Checked = site.EnabledForShortening;
 
             cbEnableMobileRedirect.Checked = site.EnableMobileRedirect;
             ppMobilePage.SetValue( site.MobilePage );
@@ -858,12 +894,12 @@ namespace RockWeb.Blocks.Cms
 
             // disable the indexing features if indexing on site is disabled
             var siteEntityType = EntityTypeCache.Read( "Rock.Model.Site" );
-            if (siteEntityType != null && !siteEntityType.IsIndexingEnabled )
+            if ( siteEntityType != null && !siteEntityType.IsIndexingEnabled )
             {
                 cbEnableIndexing.Visible = false;
                 tbIndexStartingLocation.Visible = false;
             }
-
+            
             var attributeService = new AttributeService( new RockContext() );
             var siteIdQualifierValue = site.Id.ToString();
             PageAttributesState = attributeService.GetByEntityTypeId( new Page().TypeId ).AsQueryable()
@@ -892,7 +928,7 @@ namespace RockWeb.Blocks.Cms
             lSiteDescription.Text = site.Description;
 
             DescriptionList descriptionList = new DescriptionList();
-            descriptionList.Add( "Domain(s)", site.SiteDomains.Select( d => d.Domain ).ToList().AsDelimited( ", " ) );
+            descriptionList.Add( "Domain(s)", site.SiteDomains.OrderBy( d => d.Order ).Select( d => d.Domain ).ToList().AsDelimited( ", " ) );
             descriptionList.Add( "Theme", site.Theme );
             descriptionList.Add( "Default Page", site.DefaultPageRoute );
             lblMainDetails.Text = descriptionList.Html;

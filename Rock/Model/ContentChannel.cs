@@ -31,6 +31,7 @@ namespace Rock.Model
     /// <summary>
     /// 
     /// </summary>
+    [RockDomain( "CMS" )]
     [Table( "ContentChannel" )]
     [DataContract]
     public partial class ContentChannel : Model<ContentChannel>
@@ -169,6 +170,16 @@ namespace Rock.Model
         [DataMember]
         public bool IsIndexEnabled { get; set; }
 
+        /// <summary>
+        /// Gets or sets the Content Channel Item Tag Categories.
+        /// </summary>
+        /// <value>
+        /// The Content Channel Item Tag Categories.
+        /// </value>
+        [MaxLength( 100 )]
+        [DataMember]
+        public string ItemTagCategories { get; set; }
+
         #endregion
 
         #region Virtual Properties
@@ -188,6 +199,7 @@ namespace Rock.Model
         /// <value>
         /// The items.
         /// </value>
+        [LavaInclude]
         public virtual ICollection<ContentChannelItem> Items { get; set; }
 
         /// <summary>
@@ -296,7 +308,7 @@ namespace Rock.Model
             var contentChannelItems = new ContentChannelItemService( rockContext ).Queryable()
                                             .Where( i =>
                                                 i.ContentChannelId == contentChannelId
-                                                && (i.ContentChannel.RequiresApproval == false || i.ContentChannel.ContentChannelType.DisableStatus || i.Status == ContentChannelItemStatus.Approved) );
+                                                && ( i.ContentChannel.RequiresApproval == false || i.ContentChannel.ContentChannelType.DisableStatus || i.Status == ContentChannelItemStatus.Approved ) );
 
             foreach ( var item in contentChannelItems )
             {

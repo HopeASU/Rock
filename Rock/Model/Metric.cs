@@ -28,6 +28,7 @@ namespace Rock.Model
     /// <summary>
     /// Metric POCO Entity.
     /// </summary>
+    [RockDomain( "Reporting" )]
     [Table( "Metric" )]
     [DataContract]
     public partial class Metric : Model<Metric>
@@ -110,6 +111,15 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         public string SourceSql { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Lava code that returns the data for the Metric.
+        /// </summary>
+        /// <value>
+        /// A <see cref="System.String" /> that represents the Lava code that returns the data for the Metric.
+        /// </value>
+        [DataMember]
+        public string SourceLava { get; set; }
 
         /// <summary>
         /// Gets or sets the data view identifier.
@@ -205,6 +215,7 @@ namespace Rock.Model
         /// <value>
         /// The metric values.
         /// </value>
+        [LavaInclude]
         public virtual ICollection<MetricValue> MetricValues { get; set; }
 
         /// <summary>
@@ -222,6 +233,7 @@ namespace Rock.Model
         /// <value>
         /// The data view.
         /// </value>
+        [LavaInclude]
         public virtual DataView DataView { get; set; }
 
         /// <summary>
@@ -230,6 +242,7 @@ namespace Rock.Model
         /// <value>
         /// The metric champion person alias.
         /// </value>
+        [LavaInclude]
         public virtual PersonAlias MetricChampionPersonAlias { get; set; }
 
         /// <summary>
@@ -238,6 +251,7 @@ namespace Rock.Model
         /// <value>
         /// The admin person alias.
         /// </value>
+        [LavaInclude]
         public virtual PersonAlias AdminPersonAlias { get; set; }
 
         /// <summary>
@@ -246,6 +260,7 @@ namespace Rock.Model
         /// <value>
         /// The schedule.
         /// </value>
+        [LavaInclude]
         public virtual Schedule Schedule { get; set; }
 
         /// <summary>
@@ -265,6 +280,7 @@ namespace Rock.Model
         /// <value>
         /// The type of the numeric data.
         /// </value>
+        [LavaInclude]
         public MetricNumericDataType NumericDataType { get; set; }
 
         #endregion
@@ -294,6 +310,36 @@ namespace Rock.Model
         public override string ToString()
         {
             return this.Title;
+        }
+
+        /// <summary>
+        /// Return <c>true</c> if the user is authorized to perform the selected action on this object.
+        /// </summary>
+        /// <param name="action">The action.</param>
+        /// <param name="person">The person.</param>
+        /// <returns>
+        ///   <c>true</c> if the specified action is authorized; otherwise, <c>false</c>.
+        /// </returns>
+        public override bool IsAuthorized( string action, Person person )
+        {
+            bool? isAuthorized = Security.Authorization.AuthorizedForEntity( this, action, person );
+            if ( isAuthorized.HasValue )
+            {
+                return isAuthorized.Value;
+            }
+
+            if ( this.MetricCategories != null )
+            {
+                foreach ( var metricCategory in this.MetricCategories )
+                {
+                    if ( metricCategory.Category.IsAuthorized( action, person ) )
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return base.IsAuthorized(action, person);
         }
 
         #endregion

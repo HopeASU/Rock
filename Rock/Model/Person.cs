@@ -38,6 +38,7 @@ namespace Rock.Model
     /// <summary>
     /// Represents a person or a business in Rock.
     /// </summary>
+    [RockDomain( "CRM" )]
     [Table( "Person" )]
     [DataContract]
     public partial class Person : Model<Person>, IRockIndexable, IAnalyticHistorical
@@ -386,6 +387,15 @@ namespace Rock.Model
         public EmailPreference EmailPreference { get; set; }
 
         /// <summary>
+        /// Gets or sets the communication preference.
+        /// </summary>
+        /// <value>
+        /// The communication preference.
+        /// </value>
+        [DataMember]
+        public CommunicationType CommunicationPreference { get; set; }
+
+        /// <summary>
         /// Gets or sets notes about why a person profile needs to be reviewed
         /// </summary>
         /// <value>
@@ -424,6 +434,24 @@ namespace Rock.Model
         [DataMember]
         public int? ViewedCount { get; set; }
 
+        /// <summary>
+        /// Gets or sets the MetaPersonicxLifestageCluster Id of the <see cref="Rock.Model.MetaPersonicxLifestageCluster"/>.
+        /// </summary>
+        /// <value>
+        /// An <see cref="System.Int32"/> representing a MetaPersonicxLifestageCluster Id of the <see cref="Rock.Model.MetaPersonicxLifestageCluster"/>.
+        /// </value>
+        [DataMember]
+        public int? MetaPersonicxLifestageClusterId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the MetaPersonicxLifestageGroup Id of the <see cref="Rock.Model.MetaPersonicxLifestageGroup"/>.
+        /// </summary>
+        /// <value>
+        /// An <see cref="System.Int32"/> representing a MetaPersonicxLifestageGroup Id of the <see cref="Rock.Model.MetaPersonicxLifestageGroup"/>.
+        /// </value>
+        [DataMember]
+        public int? MetaPersonicxLifestageGroupId { get; set; }
+
         #endregion
 
         #region Constructors
@@ -438,6 +466,7 @@ namespace Rock.Model
             _phoneNumbers = new Collection<PhoneNumber>();
             _members = new Collection<GroupMember>();
             _aliases = new Collection<PersonAlias>();
+            CommunicationPreference = CommunicationType.Email;
         }
 
         #endregion
@@ -787,6 +816,7 @@ namespace Rock.Model
         /// <value>
         /// A collection of <see cref="Rock.Model.GroupMember">GroupMember</see> entities representing the group memberships that are associated with
         /// </value>
+        [LavaInclude]
         public virtual ICollection<GroupMember> Members
         {
             get { return _members; }
@@ -801,6 +831,7 @@ namespace Rock.Model
         /// <value>
         /// The aliases.
         /// </value>
+        [LavaInclude]
         public virtual ICollection<PersonAlias> Aliases
         {
             get { return _aliases; }
@@ -896,7 +927,26 @@ namespace Rock.Model
         /// <value>
         /// The giving group.
         /// </value>
+        [LavaInclude]
         public virtual Group GivingGroup { get; set; }
+
+        /// <summary>
+        /// Gets or sets the metaPersonicxLifestage cluster.
+        /// </summary>
+        /// <value>
+        /// The person.
+        /// </value>
+        [DataMember]
+        public virtual MetaPersonicxLifestageCluster MetaPersonicxLifestageCluster { get; set; }
+
+        /// <summary>
+        /// Gets or sets the metaPersonicxLifestage group.
+        /// </summary>
+        /// <value>
+        /// The person.
+        /// </value>
+        [DataMember]
+        public virtual MetaPersonicxLifestageGroup MetaPersonicxLifestageGroup { get; set; }
 
         /// <summary>
         /// Gets the Person's birth date. Note: Use SetBirthDate to set the Birthdate
@@ -1157,23 +1207,24 @@ namespace Rock.Model
         /// A <see cref="System.Double"/> representing the Person's age (including fraction of year)
         /// </value>
         [NotMapped]
+        [LavaInclude]
         public virtual double? AgePrecise
         {
             get
             {
-                DateTime bday;
-                if ( DateTime.TryParse( BirthMonth.ToString() + "/" + BirthDay.ToString() + "/" + BirthYear, out bday ) )
+                DateTime? bday = this.BirthDate;
+                if ( this.BirthYear.HasValue && bday.HasValue )
                 {
                     // Calculate years
                     DateTime today = RockDateTime.Today;
-                    int years = today.Year - bday.Year;
+                    int years = today.Year - bday.Value.Year;
                     if ( bday > today.AddYears( -years ) )
                     {
                         years--;
                     }
 
                     // Calculate days between last and next bday (differs on leap years).
-                    DateTime lastBday = bday.AddYears( years );
+                    DateTime lastBday = bday.Value.AddYears( years );
                     DateTime nextBday = lastBday.AddYears( 1 );
                     double daysInYear = nextBday.Subtract( lastBday ).TotalDays;
 
@@ -1286,7 +1337,8 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Gets the impersonation parameter.
+        /// Creates and stores a new PersonToken for a person using the default ExpireDateTime and UsageLimit.
+        /// Returns the encrypted URLEncoded Token along with the ImpersonationParameter key in the form of "rckipid={ImpersonationParameter}"
         /// </summary>
         /// <value>
         /// A <see cref="System.String"/> representing the impersonation parameter.
@@ -1297,8 +1349,44 @@ namespace Rock.Model
         {
             get
             {
-                var encryptedKey = this.EncryptedKey;
-                return "rckipid=" + HttpUtility.UrlEncode( encryptedKey );
+                return this.GetImpersonationParameter();
+            }
+        }
+
+        /// <summary>
+        /// Creates and stores a new PersonToken for a person using the default ExpireDateTime and UsageLimit.
+        /// Returns the encrypted URLEncoded Token which can be used as a rckipid.
+        /// NOTE: Use the GetImpersonationParameter(...) methods to specify an expiration date, usage limit or pageid
+        /// </summary>
+        /// <value>
+        /// A <see cref="T:System.String" /> that represents a URL friendly version of the entity's unique key.
+        /// </value>
+        [NotMapped]
+        public override string EncryptedKey
+        {
+            get
+            {
+                // in the case of Person, use an encrypted PersonToken instead of the base.UrlEncodedKey
+                return this.GetImpersonationToken();
+            }
+        }
+
+        /// <summary>
+        /// Creates and stores a new PersonToken for a person using the default ExpireDateTime and UsageLimit.
+        /// Returns the encrypted URLEncoded Token which can be used as a rckipid.
+        /// NOTE: Use the GetImpersonationParameter(...) methods to specify an expiration date, usage limit or pageid
+        /// </summary>
+        /// <value>
+        /// A <see cref="T:System.String" /> that represents a URL friendly version of the entity's unique key.
+        /// </value>
+        [NotMapped]
+        [LavaInclude]
+        public override string UrlEncodedKey
+        {
+            get
+            {
+                // in the case of Person, use an encrypted PersonToken instead of the base.UrlEncodedKey
+                return this.GetImpersonationToken();
             }
         }
 
@@ -1334,6 +1422,55 @@ namespace Rock.Model
             user.PersonId = this.Id;
             user.Person = this;
             return user;
+        }
+
+        /// <summary>
+        /// Creates and stores a new PersonToken for a person using the default ExpireDateTime and UsageLimit.
+        /// Returns the encrypted URLEncoded Token which can be used as a rckipid.
+        /// </summary>
+        /// <returns></returns>
+        public virtual string GetImpersonationToken()
+        {
+            return GetImpersonationToken( null, null, null );
+        }
+
+        /// <summary>
+        /// Creates and stores a new PersonToken for a person using the default ExpireDateTime and UsageLimit.
+        /// Returns the encrypted URLEncoded Token along with the ImpersonationParameter key in the form of "rckipid={ImpersonationParameter}"
+        /// </summary>
+        /// <returns></returns>
+        /// <value>
+        /// A <see cref="System.String" /> representing the impersonation parameter.
+        /// </value>
+        public virtual string GetImpersonationParameter()
+        {
+            return GetImpersonationParameter( null, null, null );
+        }
+
+        /// <summary>
+        /// Creates and stores a new PersonToken for a person using the specified ExpireDateTime, UsageLimit, and Page
+        /// Returns the encrypted URLEncoded Token along with the ImpersonationParameter key in the form of "rckipid={ImpersonationParameter}"
+        /// </summary>
+        /// <param name="expireDateTime">The expire date time.</param>
+        /// <param name="usageLimit">The usage limit.</param>
+        /// <param name="pageId">The page identifier.</param>
+        /// <returns></returns>
+        /// <value>
+        /// A <see cref="System.String" /> representing the impersonation parameter.
+        /// </value>
+        public virtual string GetImpersonationParameter( DateTime? expireDateTime, int? usageLimit, int? pageId )
+        {
+            return $"rckipid={GetImpersonationToken( expireDateTime, usageLimit, pageId )}";
+        }
+
+        /// <summary>
+        /// Creates and stores a new PersonToken for a person using the specified ExpireDateTime, UsageLimit, and Page
+        /// Returns the encrypted URLEncoded Token which can be used as a rckipid.
+        /// </summary>
+        /// <returns></returns>
+        public virtual string GetImpersonationToken( DateTime? expireDateTime, int? usageLimit, int? pageId )
+        {
+            return PersonToken.CreateNew( this.PrimaryAlias, expireDateTime, usageLimit, pageId );
         }
 
         /// <summary>
@@ -1444,6 +1581,12 @@ namespace Rock.Model
         /// <param name="entry">The entry.</param>
         public override void PreSaveChanges( Rock.Data.DbContext dbContext, System.Data.Entity.Infrastructure.DbEntityEntry entry )
         {
+            if ( entry.State == EntityState.Deleted )
+            {
+                // If PersonRecord is getting deleted, don't do any of the presavechanges
+                return;
+            }
+
             var inactiveStatus = DefinedValueCache.Read( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_INACTIVE.AsGuid() );
             var deceased = DefinedValueCache.Read( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_REASON_DECEASED.AsGuid() );
 
@@ -1510,8 +1653,11 @@ namespace Rock.Model
                 }
             }
 
-            var transaction = new Rock.Transactions.SaveMetaphoneTransaction( this );
-            Rock.Transactions.RockQueue.TransactionQueue.Enqueue( transaction );
+            if ( this.IsValid )
+            {
+                var transaction = new Rock.Transactions.SaveMetaphoneTransaction( this );
+                Rock.Transactions.RockQueue.TransactionQueue.Enqueue( transaction );
+            }
         }
 
         /// <summary>
@@ -1708,7 +1854,7 @@ namespace Rock.Model
         /// <param name="maxWidth">The maximum width (in px).</param>
         /// <param name="maxHeight">The maximum height (in px).</param>
         /// <returns></returns>
-        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl instead." )]
+        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl or GetPersonNoPictureUrl instead." )]
         public static string GetPhotoUrl( int? photoId, Gender gender, int? maxWidth, int? maxHeight )
         {
             return GetPhotoUrl( photoId, null, gender, null, maxWidth, maxHeight, null );
@@ -1723,7 +1869,7 @@ namespace Rock.Model
         /// <param name="maxWidth">The maximum width (in px).</param>
         /// <param name="maxHeight">The maximum height (in px).</param>
         /// <returns></returns>
-        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl instead." )]
+        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl or GetPersonNoPictureUrl instead." )]
         public static string GetPhotoUrl( int? photoId, int? age, Gender gender, int? maxWidth, int? maxHeight )
         {
             return GetPhotoUrl( photoId, age, gender, null, maxWidth, maxHeight, null );
@@ -1738,7 +1884,7 @@ namespace Rock.Model
         /// <param name="maxWidth">The maximum width (in px).</param>
         /// <param name="maxHeight">The maximum height (in px).</param>
         /// <returns></returns>
-        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl instead." )]
+        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl or GetPersonNoPictureUrl instead." )]
         public static string GetPhotoUrl( int? photoId, Gender gender, int? age, int? maxWidth, int? maxHeight )
         {
             return GetPhotoUrl( photoId, age, gender, null, maxWidth, maxHeight, null );
@@ -1753,7 +1899,7 @@ namespace Rock.Model
         /// <param name="maxWidth">The maximum width (in px).</param>
         /// <param name="maxHeight">The maximum height (in px).</param>
         /// <returns></returns>
-        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl instead." )]
+        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl or GetPersonNoPictureUrl instead." )]
         public static string GetPhotoUrl( int? photoId, Gender gender, Guid? recordTypeValueGuid, int? maxWidth, int? maxHeight )
         {
             return GetPhotoUrl( photoId, null, gender, recordTypeValueGuid, maxWidth, maxHeight, null );
@@ -1769,7 +1915,7 @@ namespace Rock.Model
         /// <param name="maxWidth">The maximum width (in px).</param>
         /// <param name="maxHeight">The maximum height (in px).</param>
         /// <returns></returns>
-        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl instead." )]
+        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl or GetPersonNoPictureUrl instead." )]
         public static string GetPhotoUrl( int? photoId, int? age, Gender gender, Guid? recordTypeValueGuid, int? maxWidth, int? maxHeight )
         {
             return GetPhotoUrl( photoId, age, gender, recordTypeValueGuid, maxWidth, maxHeight, null );
@@ -1786,7 +1932,7 @@ namespace Rock.Model
         /// <param name="maxHeight">The maximum height (in px).</param>
         /// <param name="personId">The person identifier.</param>
         /// <returns></returns>
-        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl instead." )]
+        [Obsolete( "GetPhotoUrl is deprecated, please use GetPersonPhotoUrl or GetPersonNoPictureUrl instead." )]
         public static string GetPhotoUrl( int? photoId, int? age, Gender gender, Guid? recordTypeValueGuid, int? maxWidth = null, int? maxHeight = null, int? personId = null)
         {
             string virtualPath = string.Empty;
@@ -1829,12 +1975,12 @@ namespace Rock.Model
                     Guid? familyRoleGuid = null;
                     if ( personId.HasValue )
                     {
-                        var familyGroupTypeGuid = Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY.AsGuid();
+                        var familyGroupTypeId = GroupTypeCache.Read( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Id;
                         familyRoleGuid = new GroupMemberService( new RockContext() ).Queryable()
                                             .Where( m =>
-                                                m.Group.GroupType.Guid == familyGroupTypeGuid
+                                                m.Group.GroupTypeId == familyGroupTypeId
                                                 && m.PersonId == personId )
-                                            .OrderBy( m => m.GroupRole.Order )
+                                            .OrderBy(m => m.GroupOrder ?? int.MaxValue ).ThenBy( m => m.GroupRole.Order )
                                             .Select( m => m.GroupRole.Guid )
                                             .FirstOrDefault();
                     }
@@ -1905,6 +2051,18 @@ namespace Rock.Model
         }
 
         /// <summary>
+        /// Gets the 'NoPictureUrl' for the person based on their Gender, Age, and RecordType (Person or Business)
+        /// </summary>
+        /// <param name="person">The person.</param>
+        /// <param name="maxWidth">The maximum width.</param>
+        /// <param name="maxHeight">The maximum height.</param>
+        /// <returns></returns>
+        public static string GetPersonNoPictureUrl( Person person, int? maxWidth = null, int? maxHeight = null )
+        {
+            return GetPersonPhotoUrl( person.Id, null, person.Age, person.Gender, person.RecordTypeValueId.HasValue ? DefinedValueCache.Read( person.RecordTypeValueId.Value ).Guid : ( Guid? ) null, maxWidth, maxHeight );
+        }
+
+        /// <summary>
         /// Gets the person photo URL.
         /// </summary>
         /// <param name="personId">The person identifier.</param>
@@ -1957,12 +2115,12 @@ namespace Rock.Model
                     Guid? familyRoleGuid = null;
                     if ( personId.HasValue )
                     {
-                        var familyGroupTypeGuid = Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY.AsGuid();
+                        var familyGroupTypeId = GroupTypeCache.Read( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Id;
                         familyRoleGuid = new GroupMemberService( new RockContext() ).Queryable()
                                             .Where( m =>
-                                                m.Group.GroupType.Guid == familyGroupTypeGuid
+                                                m.Group.GroupTypeId == familyGroupTypeId
                                                 && m.PersonId == personId )
-                                            .OrderBy( m => m.GroupRole.Order )
+                                            .OrderBy( m => m.GroupOrder ?? int.MaxValue ).ThenBy( m => m.GroupRole.Order )
                                             .Select( m => m.GroupRole.Guid )
                                             .FirstOrDefault();
                     }
@@ -2146,7 +2304,7 @@ namespace Rock.Model
             {
                 if ( recordTypeValueGuid.HasValue && recordTypeValueGuid.Value == SystemGuid.DefinedValue.PERSON_RECORD_TYPE_BUSINESS.AsGuid() )
                 {
-                    photoUrl.Append( "/Assets/Images/business-no-photo.svg?" );
+                    photoUrl.Append( "Assets/Images/business-no-photo.svg?" );
                 }
                 else if ( age.HasValue && age.Value < 18 )
                 {
@@ -2166,12 +2324,12 @@ namespace Rock.Model
                     Guid? familyRoleGuid = null;
                     if ( personId.HasValue )
                     {
-                        var familyGroupTypeGuid = Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY.AsGuid();
+                        var familyGroupTypeId = GroupTypeCache.Read( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Id;
                         familyRoleGuid = new GroupMemberService( new RockContext() ).Queryable()
                                             .Where( m =>
-                                                m.Group.GroupType.Guid == familyGroupTypeGuid
+                                                m.Group.GroupTypeId == familyGroupTypeId
                                                 && m.PersonId == personId )
-                                            .OrderBy( m => m.GroupRole.Order )
+                                            .OrderBy( m => m.GroupOrder ?? int.MaxValue ).ThenBy( m => m.GroupRole.Order )
                                             .Select( m => m.GroupRole.Guid )
                                             .FirstOrDefault();
                     }
@@ -2317,12 +2475,12 @@ namespace Rock.Model
                     Guid? familyRoleGuid = null;
                     if ( personId.HasValue )
                     {
-                        var familyGroupTypeGuid = Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY.AsGuid();
+                        var familyGroupTypeId = GroupTypeCache.Read( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Id;
                         familyRoleGuid = new GroupMemberService( new RockContext() ).Queryable()
                                             .Where( m =>
-                                                m.Group.GroupType.Guid == familyGroupTypeGuid
+                                                m.Group.GroupTypeId == familyGroupTypeId
                                                 && m.PersonId == personId )
-                                            .OrderBy( m => m.GroupRole.Order )
+                                            .OrderBy( m => m.GroupOrder ?? int.MaxValue ).ThenBy( m => m.GroupRole.Order )
                                             .Select( m => m.GroupRole.Guid )
                                             .FirstOrDefault();
                     }
@@ -2738,6 +2896,8 @@ namespace Rock.Model
             this.HasOptional( p => p.TitleValue ).WithMany().HasForeignKey( p => p.TitleValueId ).WillCascadeOnDelete( false );
             this.HasOptional( p => p.Photo ).WithMany().HasForeignKey( p => p.PhotoId ).WillCascadeOnDelete( false );
             this.HasOptional( p => p.GivingGroup ).WithMany().HasForeignKey( p => p.GivingGroupId ).WillCascadeOnDelete( false );
+            this.HasOptional( p => p.MetaPersonicxLifestageCluster ).WithMany().HasForeignKey( p => p.MetaPersonicxLifestageClusterId ).WillCascadeOnDelete( false );
+            this.HasOptional( p => p.MetaPersonicxLifestageGroup ).WithMany().HasForeignKey( p => p.MetaPersonicxLifestageGroupId ).WillCascadeOnDelete( false );
         }
     }
 
@@ -2794,7 +2954,7 @@ namespace Rock.Model
     public static partial class PersonExtensionMethods
     {
         /// <summary>
-        /// Gets the families.
+        /// Gets the families sorted by the person's GroupOrder (GroupMember.GroupOrder)
         /// </summary>
         /// <param name="person">The person.</param>
         /// <param name="rockContext">The rock context.</param>
@@ -2806,14 +2966,14 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Gets the family for the person. If multiple families the first family is selected with an active family having preference over an inactive one.
+        /// Gets the family for the person. If multiple families the first family based on the GroupOrder value of the GroupMember
         /// </summary>
         /// <param name="person">The person.</param>
         /// <param name="rockContext">The rock context.</param>
         /// <returns></returns>
         public static Group GetFamily( this Person person, RockContext rockContext = null )
         {
-            return person.GetFamilies( rockContext ).OrderByDescending( g => g.IsActive ).FirstOrDefault();
+            return person.GetFamilies( rockContext ).FirstOrDefault();
         }
 
         /// <summary>

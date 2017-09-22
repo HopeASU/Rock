@@ -80,13 +80,18 @@
                         </div>
                         <div class="col-md-6">
                             <Rock:DataTextBox ID="tbIconCssClass" runat="server" Label="Icon CSS Class" SourceTypeName="Rock.Model.ContentChannel, Rock" PropertyName="IconCssClass" />
-                            <asp:PlaceHolder ID="phAttributes" runat="server" EnableViewState="false" />
+                            <Rock:DynamicPlaceHolder ID="phAttributes" runat="server" />
                             <Rock:RockCheckBox ID="cbEnableRss" runat="server" Label="Enable RSS" Text="Yes" CssClass="js-content-channel-enable-rss" />
                             <div id="divRss" runat="server" class="js-content-channel-rss"> 
                                 <Rock:DataTextBox ID="tbChannelUrl" runat="server" Label="Channel Url" SourceTypeName="Rock.Model.ContentChannel, Rock" PropertyName="ChannelUrl" />
                                 <Rock:DataTextBox ID="tbItemUrl" runat="server" Label="Item Url" SourceTypeName="Rock.Model.ContentChannel, Rock" PropertyName="ItemUrl" />
                                 <Rock:NumberBox ID="nbTimetoLive" runat="server" Label="Time to Live (TTL)" NumberType="Integer" MinimumValue="0" 
                                     Help="The number of minutes a feed can stay cached before it is refreshed from the source."/>
+                            </div>
+                            <Rock:RockCheckBox ID="cbEnableTag" runat="server" Label="Enable Tagging" CssClass="js-content-channel-enable-tags" />
+                            <div id="divTag" runat="server" class="js-content-channel-tags">
+                                <Rock:CategoryPicker ID="cpCategory" runat="server"  AllowMultiSelect="true" EntityTypeName="Rock.Model.Tag" Label="Tag Categories" />
+
                             </div>
                         </div>
                     </div>

@@ -347,7 +347,7 @@ namespace Rock.Web.UI.Controls
 
             StringBuilder valueHtml = new StringBuilder();
             valueHtml.Append( @"<div class=""controls controls-row form-control-group"">");
-            if ( definedValues != null )
+            if ( definedValues != null && definedValues.Any() )
             {
                 valueHtml.Append( @"<select class=""form-control input-width-lg js-value-list-input""><option value=""""></option>" );
                 foreach ( var definedValue in definedValues )
@@ -379,7 +379,7 @@ namespace Rock.Web.UI.Controls
                 writer.RenderBeginTag( HtmlTextWriterTag.Div );
                 writer.WriteLine();
 
-                if ( definedValues != null )
+                if ( definedValues != null && definedValues.Any() )
                 {
                     DropDownList ddl = new DropDownList();
                     ddl.AddCssClass( "form-control input-width-lg js-value-list-input" );
@@ -445,6 +445,7 @@ namespace Rock.Web.UI.Controls
         private void RegisterClientScript()
         {
             string script = @"
+;(function () {
     function updateKeyValues( e ) {
         var $span = e.closest('span.value-list');
         var newValue = '';
@@ -469,9 +470,13 @@ namespace Rock.Web.UI.Controls
         Rock.controls.modal.updateSize($(this));
     });
 
+    $(document).on('keyup', '.js-value-list-input', function (e) {
+        updateKeyValues($(this));            
+    });
     $(document).on('focusout', '.js-value-list-input', function (e) {
         updateKeyValues($(this));            
     });
+})();
 ";
 
             ScriptManager.RegisterStartupScript( this, this.GetType(), "value-list", script, true );

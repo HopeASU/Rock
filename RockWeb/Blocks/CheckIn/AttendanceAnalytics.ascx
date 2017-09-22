@@ -35,10 +35,8 @@
             </div>
 
             <div class="panel-body">
-                <div class="row row-eq-height-md">
+                <div class="row">
                     <div class="col-md-3 filter-options">
-
-                        <asp:HiddenField ID="hfFilterUrl" runat="server" />
 
                         <Rock:GroupTypePicker ID="ddlAttendanceType" runat="server" Label="Attendance Type" AutoPostBack="true" OnSelectedIndexChanged="ddlCheckinType_SelectedIndexChanged" />
                         <Rock:NotificationBox ID="nbGroupTypeWarning" runat="server" NotificationBoxType="Warning" Text="Please select a group type template in the block settings." Dismissable="false" />
@@ -69,10 +67,20 @@
                         <Rock:RockCheckBoxList ID="clbCampuses" runat="server" FormGroupCssClass="campuses-picker js-campuses-picker" CssClass="campuses-picker-vertical" Label="Campuses" 
                             Help="The campuses to display attendance for. Leave blank to not filter by campus." />
                         
-                        <div class="js-groups-container">
+                        <Rock:GroupPicker ID="gpGroups" runat="server" Label="Select Group(s)" AllowMultiSelect="true" Visible="false" OnSelectItem="gpGroups_SelectItem" />
+                        <Rock:RockControlWrapper ID="rcwSelectedGroups" runat="server" Label="Selected Groups" Visible="false">
+                            <ul class="list-unstyled" visible="false" >
+                                <asp:Repeater ID="rptSelectedGroups" runat="server">
+                                    <ItemTemplate><li><%# Container.DataItem %></li></ItemTemplate>
+                                </asp:Repeater> 
+                            </ul>
+                        </Rock:RockControlWrapper>
+
+                        <asp:Panel ID="pnlGroups" runat="server" Visible="false" class="js-groups-container">
                             <Rock:NotificationBox ID="nbGroupsWarning" runat="server" NotificationBoxType="Warning" Text="Please select at least one group." Visible="false"/>
                             
                             <div class="grouplist-actions rollover-container" id="divGroupListActions" runat="server">
+                                <Rock:Toggle runat="server" ID="cbShowInactive" CssClass="pull-right" ButtonSizeCssClass="btn-xs" OnCssClass="btn-primary" OffCssClass="btn-primary" OnText="All Groups" OffText="Active Groups" AutoPostBack="true" OnCheckedChanged="cbShowInactive_CheckedChanged" />
                                 <span class="h4 js-checkbox-selector cursor-pointer">Groups</span>
                                 <span class="rollover-item" id="pnlRolloverConfig" runat="server">
                                     <i class="fa fa-gear clickable js-show-config" onclick="$(this).closest('.js-groups-container').find('.js-groups-config-panel').slideToggle()"></i>
@@ -84,17 +92,17 @@
                             </div>
                             
                             <hr class="margin-t-sm" />
-                            <ul class="list-unstyled group-checkboxes">
 
+                            <ul class="list-unstyled group-checkboxes" >
                                 <asp:Repeater ID="rptGroupTypes" runat="server" OnItemDataBound="rptGroupTypes_ItemDataBound">
                                     <ItemTemplate>
                                     </ItemTemplate>
                                 </asp:Repeater>
-
                             </ul>
-                        </div>
 
-                        <Rock:DataViewPicker ID="dvpDataView" runat="server" Label="Limit by DataView" />
+                        </asp:Panel>
+
+                        <Rock:DataViewPicker ID="dvpDataView" runat="server" Label="Limit by DataView" Visible="false" />
 
                     </div>
                     <div class="col-md-9">
@@ -243,14 +251,17 @@
                                         <asp:HyperLinkField DataNavigateUrlFields="ParentId" DataTextField="Parent" HeaderText="Parent" SortExpression="Parent.LastName, Parent.NickName"/>
                                         <Rock:RockBoundField DataField="Parent" HeaderText="Parent" Visible="false" ExcelExportBehavior="AlwaysInclude" />
                                         <Rock:RockBoundField DataField="Parent.Email" HeaderText="Parent Email" Visible="false" ExcelExportBehavior="AlwaysInclude" />
+                                        <Rock:RockBoundField DataField="Parent.GivingId" HeaderText="Parent GivingId" Visible="false" ExcelExportBehavior="AlwaysInclude" />
                                         <asp:HyperLinkField DataNavigateUrlFields="ChildId" DataTextField="Child" HeaderText="Child" SortExpression="Child.LastName, Child.NickName"/>
                                         <Rock:RockBoundField DataField="Child" HeaderText="Child" Visible="false" ExcelExportBehavior="AlwaysInclude" />
                                         <Rock:RockBoundField DataField="Child.Email" HeaderText="Child Email" Visible="false" ExcelExportBehavior="AlwaysInclude" />
                                         <Rock:RockBoundField DataField="Child.Age" HeaderText="Child Age" Visible="false" ExcelExportBehavior="AlwaysInclude" />
+                                        <Rock:RockBoundField DataField="Child.GivingId" HeaderText="Child GivingId" Visible="false" ExcelExportBehavior="AlwaysInclude" />
                                         <asp:HyperLinkField DataNavigateUrlFields="PersonId" DataTextField="Person" HeaderText="Name" SortExpression="Person.LastName, Person.NickName"/>
                                         <Rock:RockBoundField DataField="Person" HeaderText="Person" Visible="false" ExcelExportBehavior="AlwaysInclude" />
                                         <Rock:RockBoundField DataField="Person.Email" HeaderText="Email" Visible="false" ExcelExportBehavior="AlwaysInclude" />
                                         <Rock:RockBoundField DataField="Person.Age" HeaderText="Age" Visible="false" ExcelExportBehavior="AlwaysInclude" />
+                                        <Rock:RockBoundField DataField="Person.GivingId" HeaderText="GivingId" Visible="false" ExcelExportBehavior="AlwaysInclude" />
                                         <Rock:RockBoundField DataField="Person.Birthdate" HeaderText="Birthdate" Visible="false" ExcelExportBehavior="AlwaysInclude" />
                                         <Rock:DefinedValueField DataField="Person.ConnectionStatusValueId" HeaderText="Connection Status" SortExpression="Person.ConnectionStatusValueId" />
                                         <Rock:RockLiteralField HeaderText="First Visit" ID="lFirstVisitDate" SortExpression="FirstVisit.StartDateTime" Visible="false"/>

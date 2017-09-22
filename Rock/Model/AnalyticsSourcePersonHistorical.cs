@@ -26,6 +26,7 @@ namespace Rock.Model
     /// <summary>
     /// Represents the source record for the AnalyticsDimPersonHistorical and AnalyticsDimPersonCurrent views
     /// </summary>
+    [RockDomain( "Reporting" )]
     [Table( "AnalyticsSourcePersonHistorical" )]
     [DataContract]
     [HideFromReporting]
@@ -37,6 +38,7 @@ namespace Rock.Model
     /// <summary>
     /// AnalyticsSourcePersonHistorical is a real table, and AnalyticsDimPersonHistorical and AnalyticsDimPersonCurrent are VIEWs off of AnalyticsSourcePersonHistorical, so they share lots of columns
     /// </summary>
+    [RockDomain( "Reporting" )]
     public abstract class AnalyticsSourcePersonBase<T> : Entity<T>
         where T : AnalyticsSourcePersonBase<T>, new()
     {
@@ -439,7 +441,7 @@ namespace Rock.Model
         /// The birth date dim.
         /// </value>
         [DataMember]
-        public virtual AnalyticsDimDate BirthDateDim { get; set; }
+        public virtual AnalyticsSourceDate BirthDateDim { get; set; }
 
         #endregion
     }
@@ -457,7 +459,7 @@ namespace Rock.Model
         public AnalyticsDimPersonHistoricalConfiguration()
         {
             // NOTE: When creating a migration for this, don't create the actual FK's in the database for this just in case there are outlier birthdates 
-            // and so that the AnalyticsDimDate can be rebuilt from scratch as needed
+            // and so that the AnalyticsSourceDate can be rebuilt from scratch as needed
             this.HasOptional( t => t.BirthDateDim ).WithMany().HasForeignKey( t => t.BirthDateKey ).WillCascadeOnDelete( false );
         }
     }

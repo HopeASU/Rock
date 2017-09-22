@@ -231,7 +231,7 @@ namespace Rock.Web.UI.Controls
         /// <param name="values">The values.</param>
         private void WriteValueControls( HtmlTextWriter writer, string[] nameAndValue, Dictionary<string, string> values )
         {
-            if ( values != null )
+            if ( values != null && values.Any() )
             {
                 DropDownList ddl = new DropDownList();
                 ddl.AddCssClass( "key-value-value form-control input-width-md js-key-value-input" );
@@ -287,7 +287,7 @@ namespace Rock.Web.UI.Controls
         /// <param name="values">The values.</param>
         private void WriteValueHtml( StringBuilder html, Dictionary<string,string> values )
         {
-            if ( values != null )
+            if ( values != null && values.Any() )
             {
                 html.Append( @"<select class=""key-value-value form-control input-width-md js-key-value-input"">" );
                 foreach ( var value in values )
@@ -305,6 +305,7 @@ namespace Rock.Web.UI.Controls
         private void RegisterClientScript()
         {
             string script = @"
+;(function () {
     function updateKeyValues( e ) {
         var $span = e.closest('span.key-value-list');
         var newValue = '';
@@ -333,9 +334,13 @@ namespace Rock.Web.UI.Controls
         Rock.controls.modal.updateSize($(this));
     });
 
+    $(document).on('keyup', '.js-key-value-input', function (e) {
+        updateKeyValues($(this));            
+    });
     $(document).on('focusout', '.js-key-value-input', function (e) {
         updateKeyValues($(this));            
     });
+})();
 ";
 
             ScriptManager.RegisterStartupScript( this, this.GetType(), "key-value-list", script, true );

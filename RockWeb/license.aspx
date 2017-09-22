@@ -4,7 +4,6 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head id="Head1" runat="server">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <title>Rock - License</title>
 
     <link rel="stylesheet" href="<%= Page.ResolveUrl("~/Themes/Rock/Styles/bootstrap.css") %>"/>
@@ -117,10 +116,10 @@
                             <li><a href="http://www.appelsiini.net/projects/lazyload">LazyLoad.js</a> (MIT)</li>
                             <li><a href="https://github.com/drvic10k/bootstrap-sortable">Bootstrap Sortable</a> (MIT)</li>
                             <li><a href="http://momentjs.com/">Moment.js</a> (MIT)</li>
-                            <li><a href="https://github.com/zeroclipboard">ZeroClipboard</a> (MIT)</li>
+                            <li><a href="https://github.com/zenorocha/clipboard.js/">clipboard.js</a> (MIT)</li>
                             <li><a href="https://github.com/IonDen/ion.rangeSlider/">RangeSlider</a> (MIT)</li>
                             <li><a href="https://github.com/Knagis/CommonMark.NET">CommonMark</a> (MIT)</li>
-                            <li><a href="http://www.dotlesscss.org/">doLess</a> (Apache)</li>
+                            <li><a href="http://www.dotlesscss.org/">dotLess</a> (Apache)</li>
                             <li><a href="https://github.com/mjolnic/bootstrap-colorpicker">ColorPicker</a> (Apache)</li>
                             <li><a href="http://bcrypt.codeplex.com/">BCrypt</a> (BSD)</li>
                             <li><a href="https://github.com/MikaelEliasson/EntityFramework.Utilities/blob/master/EntityFramework.Utilities">EFUtilities</a> (MIT)</li>
@@ -128,6 +127,8 @@
                             <li><a href="https://github.com/alxlit/bootstrap-chosen">Bootstrap Stylsheet for Chosen</a> (MIT)</li>
                             <li><a href="https://github.com/elastic/elasticsearch-net">Elasticsearch NEST Client</a> (Apache 2)</li>
                             <li><a href="https://github.com/bcuff/elasticsearch-net-aws">Elasticsearch Net for Amazon AWS</a> (Apache 2)</li>
+                            <li><a href="https://github.com/d3/d3">D3 (Data-Driven Documents)</a> (Custom)</li>
+                            <li><a href="https://github.com/jasondavies/d3-cloud">D3 Word Cloud</a> (Custom)</li>
                         </ul>
                     </div>
                 </div>

@@ -1,6 +1,6 @@
 <!--
 
-If you have found a security bug in Rock and want to report it to us, DO NOT file an issue. Email secretary@sparkdevnetwork.org and we'll be in touch shortly.
+If you have found a security bug in Rock and want to report it to us, DO NOT file an issue. Email info@sparkdevnetwork.org and we'll be in touch shortly.
 
 Do you want to ask a question? Are you looking for support? The Ask Rock is the best place for getting support: https://www.rockrms.com/Ask
 
@@ -33,4 +33,4 @@ Do you want to ask a question? Are you looking for support? The Ask Rock is the 
 ### Versions
 
 * **Rock Version:** [Enter Rock version here]  
-* **Client Culture Setting** [Enter Client Culture here]  
+* **Client Culture Setting:** [Enter Client Culture here]  

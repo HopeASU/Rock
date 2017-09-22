@@ -72,6 +72,10 @@
                         </div>
                     </div>
 
+                     <div class="taglist margin-v-lg clearfix">
+                        <Rock:TagList ID="taglTags" runat="server" />
+                    </div>
+
                     <div class="row">
                         <div class="col-md-12">
                             <Rock:HtmlEditor ID="htmlContent" runat="server" Label="Content" ResizeMaxWidth="720" Height="300" />
@@ -81,7 +85,7 @@
 
                     <div class="row">
                         <div class="col-md-12">
-                            <asp:PlaceHolder ID="phAttributes" runat="server" EnableViewState="false" />
+                            <Rock:DynamicPlaceHolder ID="phAttributes" runat="server" />
                         </div>
                     </div>
 

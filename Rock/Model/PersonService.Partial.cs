@@ -634,7 +634,7 @@ namespace Rock.Model
             Guid businessGuid = Rock.SystemGuid.GroupRole.GROUPROLE_KNOWN_RELATIONSHIPS_BUSINESS.AsGuid();
             Guid ownerGuid = Rock.SystemGuid.GroupRole.GROUPROLE_KNOWN_RELATIONSHIPS_OWNER.AsGuid();
 
-            var rockContext = (RockContext)this.Context;
+            var rockContext = ( RockContext ) this.Context;
             return new GroupMemberService( rockContext )
                 .Queryable().AsNoTracking()
                 .Where( m =>
@@ -666,18 +666,18 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Gets the families.
+        /// Gets the families sorted by the person's GroupOrder (GroupMember.GroupOrder)
         /// </summary>
         /// <param name="personId">The person identifier.</param>
         /// <returns></returns>
         public IQueryable<Group> GetFamilies( int personId )
         {
-            Guid familyGuid = new Guid( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY );
+            var familyGroupTypeId = GroupTypeCache.Read( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Id;
 
             return new GroupMemberService( ( RockContext ) this.Context ).Queryable( true )
-                .Where( m => m.PersonId == personId && m.Group.GroupType.Guid == familyGuid )
-                .Select( m => m.Group )
-                .Distinct();
+                .Where( m => m.PersonId == personId && m.Group.GroupTypeId == familyGroupTypeId )
+                .OrderBy( m => m.GroupOrder ?? int.MaxValue )
+                .Select( m => m.Group );
         }
 
         /// <summary>
@@ -836,12 +836,12 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Returns a collection of <see cref="Rock.Model.Person" /> entities containing the family members of the provided person.
+        /// Returns a collection of <see cref="Rock.Model.GroupMember" /> entities containing the family members of the provided person sorted by the Person's GroupOrder (GroupMember.GroupOrder)
         /// </summary>
         /// <param name="personId">The person identifier.</param>
         /// <param name="includeSelf">if set to <c>true</c> [include self].</param>
         /// <returns>
-        /// An enumerable collection of <see cref="Rock.Model.Person" /> entities containing the family members of the provided person.
+        /// An enumerable collection of <see cref="Rock.Model.GroupMember" /> entities containing the family members of the provided person.
         /// </returns>
         public IQueryable<GroupMember> GetFamilyMembers( int personId, bool includeSelf = false )
         {
@@ -850,7 +850,7 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Gets the group members.
+        /// Gets the group members 
         /// </summary>
         /// <param name="groupTypeId">The group type identifier.</param>
         /// <param name="personId">The person identifier.</param>
@@ -860,27 +860,35 @@ namespace Rock.Model
         {
             var groupMemberService = new GroupMemberService( ( RockContext ) this.Context );
 
-            var familyGroupIds = groupMemberService.Queryable( true )
+            // construct the linq in a way that will return the group members sorted by the GroupOrder setting of the person
+            var groupMembers = groupMemberService.Queryable( true )
                 .Where( m =>
                     m.PersonId == personId &&
                     m.Group.GroupTypeId == groupTypeId )
-                .Select( m => m.GroupId )
-                .Distinct();
+                .Select( m => new
+                {
+                    SortedMembers = m.Group.Members.Select( x => new
+                    {
+                        GroupMember = x,
+                        PersonGroupOrder = m.GroupOrder 
+                    } )
+                } )
+                .SelectMany( x => x.SortedMembers )
+                .OrderBy( a => a.PersonGroupOrder ?? int.MaxValue )
+                .Select( a => a.GroupMember )
+                .Where( m => includeSelf || ( m.PersonId != personId && !m.Person.IsDeceased ) );
 
-            return groupMemberService.Queryable( "Person,GroupRole", true )
-                .Where( m =>
-                    familyGroupIds.Contains( m.GroupId ) &&
-                    ( includeSelf || ( m.PersonId != personId && !m.Person.IsDeceased ) ) );
+            return groupMembers.Include( a => a.Person ).Include( a => a.GroupRole );
         }
 
         /// <summary>
-        /// Returns a collection of <see cref="Rock.Model.Person" /> entities containing the family members of the provided person.
+        /// Returns a collection of <see cref="Rock.Model.GroupMember" /> entities containing the family members of the provided person.
         /// </summary>
         /// <param name="family">The family.</param>
         /// <param name="personId">The person identifier.</param>
         /// <param name="includeSelf">if set to <c>true</c> [include self].</param>
         /// <returns>
-        /// An enumerable collection of <see cref="Rock.Model.Person" /> entities containing the family members of the provided person.
+        /// An enumerable collection of <see cref="Rock.Model.GroupMember" /> entities containing the family members of the provided person.
         /// </returns>
         public IQueryable<GroupMember> GetFamilyMembers( Group family, int personId, bool includeSelf = false )
         {
@@ -1200,11 +1208,13 @@ namespace Rock.Model
         /// <returns></returns>
         public GroupLocation GetFirstLocation( int personId, int locationTypeValueId )
         {
-            Guid familyGuid = new Guid( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY );
+            int groupTypeFamilyId = GroupTypeCache.Read( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Id;
+
             return new GroupMemberService( ( RockContext ) this.Context ).Queryable( "GroupLocations.Location", true )
                 .Where( m =>
                     m.PersonId == personId &&
-                    m.Group.GroupType.Guid == familyGuid )
+                    m.Group.GroupTypeId == groupTypeFamilyId )
+                .OrderBy( m => m.GroupOrder ?? int.MaxValue )
                 .SelectMany( m => m.Group.GroupLocations )
                 .Where( gl => gl.GroupLocationTypeValueId == locationTypeValueId )
                 .FirstOrDefault();
@@ -1286,13 +1296,36 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Gets the by encrypted key.
+        /// Special override of Entity.GetByUrlEncodedKey for Person. Gets the Person by impersonation token (rckipid) and validates it against a Rock.Model.PersonToken
+        /// NOTE: You might want to use GetByImpersonationToken instead to prevent a token from being used that was limited to a specific page
+        /// </summary>
+        /// <param name="encodedKey">The encoded key.</param>
+        /// <returns></returns>
+        public override Person GetByUrlEncodedKey( string encodedKey )
+        {
+            return GetByImpersonationToken( encodedKey, false, null );
+        }
+
+        /// <summary>
+        /// Gets the Person by impersonation token (rckipid) and validates it against a Rock.Model.PersonToken
+        /// </summary>
+        /// <param name="impersonationToken">The impersonation token.</param>
+        /// <param name="incrementUsage">if set to <c>true</c> [increment usage].</param>
+        /// <param name="pageId">The page identifier.</param>
+        /// <returns></returns>
+        public Person GetByImpersonationToken( string impersonationToken, bool incrementUsage, int? pageId )
+        {
+            return GetByEncryptedKey( impersonationToken, true, incrementUsage, pageId );
+        }
+
+        /// <summary>
+        /// Special override of Entity.GetByEncryptedKey for Person. Gets the Person by impersonation token (rckipid) and validates it against a Rock.Model.PersonToken
         /// </summary>
         /// <param name="encryptedKey">The encrypted key.</param>
         /// <returns></returns>
         public override Person GetByEncryptedKey( string encryptedKey )
         {
-            return GetByEncryptedKey( encryptedKey, true );
+            return GetByEncryptedKey( encryptedKey, true, true, null );
         }
 
         /// <summary>
@@ -1303,17 +1336,106 @@ namespace Rock.Model
         /// <returns>
         /// The <see cref="Rock.Model.Person" /> associated with the provided Key, otherwise null.
         /// </returns>
-        public Person GetByEncryptedKey( string encryptedKey, bool followMerges )
+        [Obsolete( "Use GetByEncryptedKey( string encryptedKey, bool followMerges, int? pageId ) instead" )]
+        public Person GetByEncryptedKey( string encryptedKey, bool followMerges)
         {
+            return GetByEncryptedKey( encryptedKey, true, true, null );
+        }
+
+        /// <summary>
+        /// Special override of Entity.GetByEncryptedKey for Person. Gets the Person by impersonation token (rckipid) and validates it against a Rock.Model.PersonToken
+        /// </summary>
+        /// <param name="encryptedKey">A <see cref="System.String" /> containing an encrypted key value.</param>
+        /// <param name="followMerges">if set to <c>true</c> [follow merges]. (only applies if using PersonTokenLegacyFallback)</param>
+        /// <param name="incrementUsage">if set to <c>true</c> [increment usage].</param>
+        /// <param name="pageId">The page identifier.</param>
+        /// <returns>
+        /// The <see cref="Rock.Model.Person" /> associated with the provided Key, otherwise null.
+        /// </returns>
+        public Person GetByEncryptedKey( string encryptedKey, bool followMerges, bool incrementUsage, int? pageId )
+        {
+            // first, see if it exists as a PersonToken
+            using ( var personTokenRockContext = new RockContext() )
+            {
+                var personToken = new PersonTokenService( personTokenRockContext ).GetByImpersonationToken( encryptedKey );
+                if ( personToken != null )
+                {
+                    if ( incrementUsage )
+                    {
+                        personToken.TimesUsed++;
+                        personToken.LastUsedDateTime = RockDateTime.Now;
+                        personTokenRockContext.SaveChanges();
+                    }
+                    if ( personToken.UsageLimit.HasValue )
+                    {
+                        if ( personToken.TimesUsed > personToken.UsageLimit.Value )
+                        {
+                            // over usagelimit, so return null;
+                            return null;
+                        }
+                    }
+
+                    if ( personToken.ExpireDateTime.HasValue )
+                    {
+                        if ( personToken.ExpireDateTime.Value < RockDateTime.Now )
+                        {
+                            // expired, so return null
+                            return null;
+                        }
+                    }
+
+                    if ( personToken.PageId.HasValue && pageId.HasValue )
+                    {
+                        if ( personToken.PageId.Value != pageId.Value )
+                        {
+                            // personkey was for a specific page and this is not that page, so return null
+                            return null;
+                        }
+                    }
+
+                    if ( personToken.PersonAlias != null )
+                    {
+                        // refetch using PersonService using rockContext instead of personTokenRockContext which was used to save the changes to personKey
+                        return this.Get( personToken.PersonAlias.PersonId );
+                    }
+                }
+            }
+
+            bool tokenUseLegacyFallback = GlobalAttributesCache.Read().GetValue( "core.PersonTokenUseLegacyFallback" ).AsBoolean();
+            if ( tokenUseLegacyFallback )
+            {
+                return GetByLegacyEncryptedKey( encryptedKey, followMerges );
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Looks up a person using a Pre-V7 PersonToken. 
+        /// </summary>
+        /// <param name="encryptedKey">The encrypted key.</param>
+        /// <param name="followMerges">if set to <c>true</c> [follow merges].</param>
+        /// <returns></returns>
+        internal Person GetByLegacyEncryptedKey( string encryptedKey, bool followMerges )
+        {
+            // it may have been urlencoded, but first try without urldecoding, just in case
             var person = base.GetByEncryptedKey( encryptedKey );
+            if ( person == null )
+            {
+                string key = encryptedKey.Replace( '!', '%' );
+                key = System.Web.HttpUtility.UrlDecode( key );
+                person = base.GetByEncryptedKey( key );
+            }
+
             if ( person != null )
             {
                 return person;
             }
 
+            // NOTE: we only need the followMerges when using PersonTokenUseLegacyFallback since the PersonToken method would already take care of PersonMerge since it is keyed off of PersonAliasId
             if ( followMerges )
             {
-                var personAlias = new PersonAliasService( ( RockContext ) this.Context ).GetByAliasEncryptedKey( encryptedKey );
+                var personAlias = new PersonAliasService( this.Context as RockContext ).GetByAliasEncryptedKey( encryptedKey );
                 if ( personAlias != null )
                 {
                     return personAlias.Person;
@@ -1329,13 +1451,14 @@ namespace Rock.Model
         /// <param name="person">The person.</param>
         /// <param name="rockContext">The rock context.</param>
         /// <returns></returns>
-        public GroupTypeRole GetFamilyRole(Person person, RockContext rockContext = null )
+        public GroupTypeRole GetFamilyRole( Person person, RockContext rockContext = null )
         {
             int groupTypeFamilyId = GroupTypeCache.Read( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Id;
 
             return new GroupMemberService( rockContext == null ? new RockContext() : rockContext ).Queryable()
                                     .Where( gm => gm.PersonId == person.Id && gm.Group.GroupTypeId == groupTypeFamilyId )
-                                    .OrderBy( gm => gm.GroupRole.Order )
+                                    .OrderBy( gm => gm.GroupOrder ?? int.MaxValue )
+                                    .ThenBy( gm => gm.GroupRole.Order )
                                     .Select( gm => gm.GroupRole )
                                     .FirstOrDefault();
         }
@@ -1370,17 +1493,22 @@ namespace Rock.Model
             int adultRoleId = GroupTypeCache.Read( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Roles.First( a => a.Guid == adultGuid ).Id;
             int marriedDefinedValueId = DefinedValueCache.Read( Rock.SystemGuid.DefinedValue.PERSON_MARITAL_STATUS_MARRIED.AsGuid() ).Id;
 
-            if ( person.MaritalStatusValueId != marriedDefinedValueId || GetFamilyRole( person ).Id != adultRoleId )
+            // Businesses don't have a family role, so check for null before trying to get the Id.
+            var familyRole = GetFamilyRole( person );
+            if ( person.MaritalStatusValueId != marriedDefinedValueId || familyRole == null || familyRole.Id != adultRoleId )
             {
                 return default( TResult );
             }
+
+            var groupOrderQuery = new GroupMemberService( this.Context as RockContext ).Queryable();
 
             return GetFamilyMembers( person.Id )
                 .Where( m => m.GroupRoleId == adultRoleId )
                 // In the future, we may need to implement and check a GLOBAL Attribute "BibleStrict" with this logic: 
                 .Where( m => m.Person.Gender != person.Gender || m.Person.Gender == Gender.Unknown || person.Gender == Gender.Unknown )
                 .Where( m => m.Person.MaritalStatusValueId == marriedDefinedValueId )
-                .OrderBy( m => DbFunctions.DiffDays(m.Person.BirthDate ?? new DateTime(1, 1, 1), person.BirthDate ?? new DateTime( 1, 1, 1 ) ) )
+                .OrderBy( m => groupOrderQuery.FirstOrDefault(x => x.GroupId == m.GroupId && x.PersonId == person.Id).GroupOrder ?? int.MaxValue )
+                .ThenBy( m => DbFunctions.DiffDays(m.Person.BirthDate ?? new DateTime(1, 1, 1), person.BirthDate ?? new DateTime( 1, 1, 1 ) ) )
                 .ThenBy( m => m.PersonId )
                 .Select( selector )
                 .FirstOrDefault();
@@ -1398,7 +1526,7 @@ namespace Rock.Model
             {
                 return null;
             }
-            return GetFamilyMembers( family, person.Id, true)
+            return GetFamilyMembers( family, person.Id, true )
                 .OrderBy( m => m.GroupRole.Order )
                 .ThenBy( m => m.Person.Gender )
                 .Select( a => a.Person )
@@ -1419,14 +1547,15 @@ namespace Rock.Model
             var rockContext = ( RockContext ) this.Context;
             var groupMemberService = new GroupMemberService( rockContext );
 
-            Guid familyTypeGuid = Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY.AsGuid();
+            int groupTypeFamilyId = GroupTypeCache.Read( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Id;
 
             // get the geopoints for the family locations for the selected person
             return groupMemberService
                 .Queryable( true ).AsNoTracking()
                 .Where( m =>
                     m.PersonId == personId &&
-                    m.Group.GroupType.Guid.Equals( familyTypeGuid ) )
+                    m.Group.GroupTypeId == groupTypeFamilyId )
+                .OrderBy( m => m.GroupOrder ?? int.MaxValue )
                 .SelectMany( m => m.Group.GroupLocations )
                 .Where( l =>
                     l.IsMappedLocation &&
@@ -1593,6 +1722,7 @@ namespace Rock.Model
                 person.LastName = person.LastName.FixCase();
 
                 // new person that hasn't be saved to database yet
+                demographicChanges.Add( "Created" );
                 History.EvaluateChange( demographicChanges, "Title", string.Empty, DefinedValueCache.GetName( person.TitleValueId ) );
                 History.EvaluateChange( demographicChanges, "First Name", string.Empty, person.FirstName );
                 History.EvaluateChange( demographicChanges, "Last Name", string.Empty, person.LastName );
@@ -1638,6 +1768,11 @@ namespace Rock.Model
                 throw new Exception( string.Format( "Specified groupRoleId ({0}) is not a {1} role ", groupRoleId, group.GroupType.Name ) );
             }
 
+            if ( !groupMember.IsValidGroupMember( rockContext ) )
+            {
+                throw new GroupMemberValidationException( groupMember.ValidationResults.Select( a => a.ErrorMessage ).ToList().AsDelimited( "<br />" ) );
+            }
+
             groupMemberService.Add( groupMember );
 
             rockContext.SaveChanges();
@@ -1646,7 +1781,7 @@ namespace Rock.Model
                 rockContext,
                 typeof( Person ),
                 Rock.SystemGuid.Category.HISTORY_PERSON_DEMOGRAPHIC_CHANGES.AsGuid(),
-                groupMember.Id,
+                groupMember.Person.Id,
                 demographicChanges );
 
             if ( isFamilyGroup )
@@ -1655,7 +1790,7 @@ namespace Rock.Model
                     rockContext,
                     typeof( Person ),
                     Rock.SystemGuid.Category.HISTORY_PERSON_FAMILY_CHANGES.AsGuid(),
-                    groupMember.Id,
+                    groupMember.Person.Id,
                     memberChanges,
                     group.Name,
                     typeof( Group ),

@@ -84,6 +84,11 @@ namespace Rock.SystemGuid
         public const string COMMUNICATION_TEMPLATE = "C3B37465-DCAF-4C8C-930C-9A9B5D066CA9";
 
         /// <summary>
+        /// Communication Preference field type
+        /// </summary>
+        public const string COMMUNICATION_PREFERENCE_TYPE = "507C28F2-8BC0-4909-A4FE-9C2B1149E2B2";
+
+        /// <summary>
         /// Comparison field type
         /// </summary>
         public const string COMPARISON = "3C742B81-3C55-48B8-A7CD-E7762EA5BB91";
@@ -117,6 +122,11 @@ namespace Rock.SystemGuid
         /// Date Time field type
         /// </summary>
         public const string DATE_TIME = "FE95430C-322D-4B67-9C77-DFD1D4408725";
+
+        /// <summary>
+        /// DataViews field type
+        /// </summary>
+        public const string DATAVIEWS = "F739BF5D-3FDC-45EC-A03C-1AE7C47E3883";
 
         /// <summary>
         /// Date Range field type
@@ -337,6 +347,11 @@ namespace Rock.SystemGuid
         /// Sliding Date Range field type
         /// </summary>
         public const string SLIDING_DATE_RANGE = "55810BC5-45EA-4044-B783-0CCE0A445C6F";
+
+        /// <summary>
+        /// Social Security Number
+        /// </summary>
+        public const string SSN = "4722C99A-C078-464A-968F-13AB5E8E318F";
 
         /// <summary>
         /// Text field type

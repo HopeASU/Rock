@@ -97,6 +97,15 @@
                             </div>
                         </div>
 
+                        <div class="row">
+                            <div class="col-md-6">
+                                <Rock:RockLiteral ID="lStartDate" runat="server" Label="Registration Starts" />
+                            </div>
+                            <div class="col-md-6">
+                                <Rock:RockLiteral ID="lEndDate" runat="server" Label="Registration Ends" />
+                            </div>
+                        </div>
+
                         <Rock:RockLiteral ID="lDetails" runat="server" Label="Details"></Rock:RockLiteral>
 
                         <div class="actions">
@@ -106,7 +115,7 @@
                             <asp:LinkButton ID="btnDelete" runat="server" Text="Delete" CssClass="btn btn-link js-delete-instance" OnClick="btnDelete_Click" CausesValidation="false" />
                             <span class="pull-right">
                                 <asp:LinkButton ID="btnPreview" runat="server" Text="Preview" CssClass="btn btn-link" OnClick="btnPreview_Click" Visible="false" />
-                                <asp:LinkButton ID="btnSendPaymentReminder" runat="server" Text="Send Payment Reminder" CssClass="btn btn-link" OnClick="btnSendPaymentReminder_Click" Visible="false" />
+                                <asp:LinkButton ID="btnSendPaymentReminder" runat="server" Text="Send Payment Reminders" CssClass="btn btn-link" OnClick="btnSendPaymentReminder_Click" Visible="false" />
                             </span>
                         </div>
                     </fieldset>
@@ -144,7 +153,7 @@
                         <Rock:ModalAlert ID="mdRegistrationsGridWarning" runat="server" />
                         <div class="grid grid-panel">
                             <Rock:GridFilter ID="fRegistrations" runat="server" OnDisplayFilterValue="fRegistrations_DisplayFilterValue">
-                                <Rock:DateRangePicker ID="drpRegistrationDateRange" runat="server" Label="Date Range" />
+                                <Rock:SlidingDateRangePicker ID="sdrpRegistrationDateRange" runat="server" Label="Registration Date Range" />
                                 <Rock:RockDropDownList ID="ddlRegistrationPaymentStatus" runat="server" Label="Payment Status">
                                     <asp:ListItem Text="" Value="" />
                                     <asp:ListItem Text="Paid in Full" Value="Paid in Full" />
@@ -164,6 +173,7 @@
                                             <asp:Literal ID="lRegisteredBy" runat="server"></asp:Literal>
                                         </ItemTemplate>
                                     </Rock:RockTemplateField>
+                                    <Rock:RockBoundField DataField="ConfirmationEmail" HeaderText="Confirmation Email" ExcelExportBehavior="AlwaysInclude" Visible="false" />
                                     <Rock:RockTemplateField HeaderText="Registrants">
                                         <ItemTemplate>
                                             <asp:Literal ID="lRegistrants" runat="server"></asp:Literal>
@@ -201,7 +211,7 @@
                         <Rock:ModalAlert ID="mdRegistrantsGridWarning" runat="server" />
                         <div class="grid grid-panel">
                             <Rock:GridFilter ID="fRegistrants" runat="server" OnDisplayFilterValue="fRegistrants_DisplayFilterValue">
-                                <Rock:DateRangePicker ID="drpRegistrantDateRange" runat="server" Label="Date Range" />
+                                <Rock:SlidingDateRangePicker ID="sdrpRegistrantDateRange" runat="server" Label="Registration Date Range" />
                                 <Rock:RockTextBox ID="tbRegistrantFirstName" runat="server" Label="First Name" />
                                 <Rock:RockTextBox ID="tbRegistrantLastName" runat="server" Label="Last Name" />
                                 <Rock:RockDropDownList ID="ddlInGroup" runat="server" Label="In Group"  />    
@@ -268,7 +278,7 @@
                         <Rock:ModalAlert ID="mdPaymentsGridWarning" runat="server" />
                         <div class="grid grid-panel">
                             <Rock:GridFilter ID="fPayments" runat="server" OnDisplayFilterValue="fPayments_DisplayFilterValue">
-                                <Rock:DateRangePicker ID="drpPaymentDateRange" runat="server" Label="Date Range" />
+                                <Rock:SlidingDateRangePicker ID="sdrpPaymentDateRange" runat="server" Label="Transaction Date Range" />
                             </Rock:GridFilter>
                             <Rock:Grid ID="gPayments" runat="server" DisplayType="Full" AllowSorting="true" RowItemText="Payment" OnRowSelected="gPayments_RowSelected" ExportSource="ColumnOutput">
                                 <Columns>

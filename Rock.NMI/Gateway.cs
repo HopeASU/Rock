@@ -23,6 +23,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 using RestSharp;
@@ -48,7 +49,6 @@ namespace Rock.NMI
     [TextField( "Three Step API URL", "The URL of the NMI Three Step API", true, "https://secure.networkmerchants.com/api/v2/three-step", "", 3, "APIUrl" )]
     [TextField( "Query API URL", "The URL of the NMI Query API", true, "https://secure.networkmerchants.com/api/query.php", "", 4, "QueryUrl" )]
     [BooleanField( "Prompt for Name On Card", "Should users be prompted to enter name on the card", false, "", 5, "PromptForName" )]
-    [BooleanField( "Prompt for Bank Account Name", "Should users be prompted to enter a name for the bank account (in addition to routing and account numbers).", true, "", 6, "PromptForBankAccountName" )]
     [BooleanField( "Prompt for Billing Address", "Should users be prompted to enter billing address", false, "", 7, "PromptForAddress" )]
     public class Gateway : ThreeStepGatewayComponent
     {
@@ -95,13 +95,13 @@ namespace Rock.NMI
         }
 
         /// <summary>
-        /// Prompts the name of for bank account.
+        /// Prompts for the person name associated with a bank account.
         /// </summary>
         /// <param name="financialGateway">The financial gateway.</param>
         /// <returns></returns>
         public override bool PromptForBankAccountName( FinancialGateway financialGateway )
         {
-            return GetAttributeValue( financialGateway, "PromptForBankAccountName" ).AsBoolean();
+            return true;
         }
 
         /// <summary>
@@ -308,7 +308,8 @@ namespace Rock.NMI
                     // cc payment
                     var curType = DefinedValueCache.Read( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_CREDIT_CARD );
                     transaction.FinancialPaymentDetail.CurrencyTypeValueId = curType != null ? curType.Id : (int?)null;
-                    transaction.FinancialPaymentDetail.AccountNumberMasked = ccNumber;
+                    transaction.FinancialPaymentDetail.CreditCardTypeValueId = CreditCardPaymentInfo.GetCreditCardType( ccNumber.Replace( '*', '1' ).AsNumeric() )?.Id;
+                    transaction.FinancialPaymentDetail.AccountNumberMasked = ccNumber.Masked( true );
 
                     string mmyy = result.GetValueOrNull( "billing_cc-exp" );
                     if ( !string.IsNullOrWhiteSpace( mmyy ) && mmyy.Length == 4 )
@@ -322,7 +323,7 @@ namespace Rock.NMI
                     // ach payment
                     var curType = DefinedValueCache.Read( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_ACH );
                     transaction.FinancialPaymentDetail.CurrencyTypeValueId = curType != null ? curType.Id : (int?)null;
-                    transaction.FinancialPaymentDetail.AccountNumberMasked = result.GetValueOrNull( "billing_account_number" );
+                    transaction.FinancialPaymentDetail.AccountNumberMasked = result.GetValueOrNull( "billing_account_number" ).Masked( true );
                 }
 
                 transaction.AdditionalLavaFields = new Dictionary<string,object>();
@@ -534,7 +535,8 @@ namespace Rock.NMI
                     // cc payment
                     var curType = DefinedValueCache.Read( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_CREDIT_CARD );
                     scheduledTransaction.FinancialPaymentDetail.CurrencyTypeValueId = curType != null ? curType.Id : (int?)null;
-                    scheduledTransaction.FinancialPaymentDetail.AccountNumberMasked = ccNumber;
+                    scheduledTransaction.FinancialPaymentDetail.CreditCardTypeValueId = CreditCardPaymentInfo.GetCreditCardType( ccNumber.Replace( '*', '1' ).AsNumeric() )?.Id;
+                    scheduledTransaction.FinancialPaymentDetail.AccountNumberMasked = ccNumber.Masked( true );
 
                     string mmyy = result.GetValueOrNull( "billing_cc-exp" );
                     if ( !string.IsNullOrWhiteSpace( mmyy ) && mmyy.Length == 4 )
@@ -548,7 +550,7 @@ namespace Rock.NMI
                     // ach payment
                     var curType = DefinedValueCache.Read( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_ACH );
                     scheduledTransaction.FinancialPaymentDetail.CurrencyTypeValueId = curType != null ? curType.Id : (int?)null;
-                    scheduledTransaction.FinancialPaymentDetail.AccountNumberMasked = result.GetValueOrNull( "billing_account_number" );
+                    scheduledTransaction.FinancialPaymentDetail.AccountNumberMasked = result.GetValueOrNull( "billing_account_number" ).Masked( true );
                 }
 
                 GetScheduledPaymentStatus( scheduledTransaction, out errorMessage );
@@ -721,46 +723,61 @@ namespace Rock.NMI
                             {
                                 foreach ( var xTxn in xdocResult.Root.Elements( "transaction" ) )
                                 {
-                                    string subscriptionId = GetXElementValue( xTxn, "original_transaction_id" ).Trim();
-                                    if ( !string.IsNullOrWhiteSpace( subscriptionId ) )
+                                    Payment payment = new Payment();
+                                    payment.TransactionCode = GetXElementValue( xTxn, "transaction_id" );
+                                    payment.Status = GetXElementValue( xTxn, "condition" ).FixCase();
+                                    payment.IsFailure =
+                                        payment.Status == "Failed" ||
+                                        payment.Status == "Abandoned" ||
+                                        payment.Status == "Canceled";
+                                    payment.TransactionCode = GetXElementValue( xTxn, "transaction_id" );
+                                    payment.GatewayScheduleId = GetXElementValue( xTxn, "original_transaction_id" ).Trim();
+
+                                    var statusMessage = new StringBuilder();
+                                    DateTime? txnDateTime = null;
+
+                                    foreach ( var xAction in xTxn.Elements( "action" ) )
                                     {
-                                        Payment payment = null;
-                                        var statusMessage = new StringBuilder();
-                                        foreach ( var xAction in xTxn.Elements( "action" ) )
+                                        DateTime? actionDate = ParseDateValue( GetXElementValue( xAction, "date" ) );
+                                        string actionType = GetXElementValue( xAction, "action_type" );
+                                        string responseText = GetXElementValue( xAction, "response_text" );
+
+                                        if ( actionDate.HasValue )
                                         {
-                                            DateTime? actionDate = ParseDateValue( GetXElementValue( xAction, "date" ) );
-                                            string actionType = GetXElementValue( xAction, "action_type" );
-                                            string responseText = GetXElementValue( xAction, "response_text" );
-                                            if ( actionDate.HasValue )
-                                            {
-                                                statusMessage.AppendFormat( "{0} {1}: {2}; Status: {3}",
-                                                    actionDate.Value.ToShortDateString(), actionDate.Value.ToShortTimeString(),
-                                                    actionType.FixCase(), responseText );
-                                                statusMessage.AppendLine();
-                                            }
-                                            if ( payment == null && actionType == "sale" && GetXElementValue( xAction, "source" ) == "recurring" )
-                                            {
-                                                decimal? txnAmount = GetXElementValue( xAction, "amount" ).AsDecimalOrNull();
-                                                if ( txnAmount.HasValue && actionDate.HasValue )
-                                                {
-                                                    payment = new Payment();
-                                                    payment.Status = GetXElementValue( xTxn, "condition" ).FixCase();
-                                                    payment.IsFailure = payment.Status == "Failed";
-                                                    payment.StatusMessage = GetXElementValue( xTxn, "response_text" );
-                                                    payment.Amount = txnAmount.Value;
-                                                    payment.TransactionDateTime = actionDate.Value;
-                                                    payment.TransactionCode = GetXElementValue( xTxn, "transaction_id" );
-                                                    payment.GatewayScheduleId = subscriptionId;
-                                                }
-                                            }
+                                            statusMessage.AppendFormat( "{0} {1}: {2}; Status: {3}",
+                                                actionDate.Value.ToShortDateString(), actionDate.Value.ToShortTimeString(),
+                                                actionType.FixCase(), responseText );
+                                            statusMessage.AppendLine();
                                         }
-                                        if ( payment != null )
+
+                                        decimal? txnAmount = GetXElementValue( xAction, "amount" ).AsDecimalOrNull();
+                                        if ( txnAmount.HasValue && actionDate.HasValue )
                                         {
-                                            payment.StatusMessage = statusMessage.ToString();
-                                            txns.Add( payment );
+                                            payment.Amount = txnAmount.Value;
+                                        }
+
+                                        if ( actionType == "sale" )
+                                        {
+                                            txnDateTime = actionDate.Value;
+                                        }
+
+                                        if ( actionType == "settle")
+                                        {
+                                            payment.IsSettled = true;
+                                            payment.SettledGroupId = GetXElementValue( xAction, "processor_batch_id" ).Trim();
+                                            payment.SettledDate = actionDate;
+                                            txnDateTime = txnDateTime.HasValue ? txnDateTime.Value : actionDate.Value;
                                         }
                                     }
+
+                                    if ( txnDateTime.HasValue )
+                                    {
+                                        payment.TransactionDateTime = txnDateTime.Value;
+                                        payment.StatusMessage = statusMessage.ToString();
+                                        txns.Add( payment );
+                                    }
                                 }
+
                             }
                         }
                         else

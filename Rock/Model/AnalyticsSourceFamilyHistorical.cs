@@ -27,6 +27,7 @@ namespace Rock.Model
     /// <summary>
     /// Represents the source record for the AnalyticsDimFamilyHistorical and AnalyticsDimFamilyCurrent views
     /// </summary>
+    [RockDomain( "Reporting" )]
     [Table( "AnalyticsSourceFamilyHistorical" )]
     [DataContract]
     [HideFromReporting]
@@ -38,6 +39,7 @@ namespace Rock.Model
     /// <summary>
     /// AnalyticsSourceFamilyHistorical is a real table, and AnalyticsDimFamilyHistorical and AnalyticsDimFamilyCurrent are VIEWs off of AnalyticsSourceFamilyHistorical, so they share lots of columns
     /// </summary>
+    [RockDomain( "Reporting" )]
     public abstract class AnalyticsSourceFamilyBase<T> : Entity<T>
         where T : AnalyticsSourceFamilyBase<T>, new()
     {
@@ -212,9 +214,9 @@ namespace Rock.Model
         public AnalyticsDimFamilyHistoricalConfiguration()
         {
             // NOTE: When creating a migration for this, don't create the actual FK's in the database for any of these since they are views
-    
+
             // NOTE: When creating a migration for this, don't create the actual FK's in the database for this just in case there are outlier birthdates 
-            // and so that the AnalyticsDimDate can be rebuilt from scratch as needed
+            // and so that the AnalyticsSourceDate can be rebuilt from scratch as needed
         }
     }
 
